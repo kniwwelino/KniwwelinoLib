@@ -31,7 +31,7 @@ typedef void (*MQTTClientCallbackSimple)(String &topic, String &payload);
 MQTTClientCallbackSimple mqttCallback = nullptr;
 
 /*
- * Lib Contructor. no need to call, as we provide a static Kniwwelino object instance
+ * Lib Constructor. no need to call, as we provide a static Kniwwelino object instance
  *
  */
 KniwwelinoLib::KniwwelinoLib() : Adafruit_GFX(5, 5) {
@@ -210,8 +210,19 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 		// BOOT: Wifi Established
 		MATRIXsetStatus(15);
 
-		// start mqtt
-		Kniwwelino.MQTTsetup(mqttServer, mqttPort, mqttUser, mqttPW);
+		// start connection to system mqtt
+		IPAddress brokerIP;
+		WiFi.hostByName(mqttServer, brokerIP);
+		DEBUG_PRINT(F("Setting up System MQTT Broker: "));DEBUG_PRINT(mqttServer);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
+		mqtt.begin(mqttServer, mqttPort, wifi);
+		mqtt.onMessage(Kniwwelino._MQTTMessageReceived);
+		strcpy(Kniwwelino.mqttUser, mqttUser);
+		strcpy(Kniwwelino.mqttPW, mqttPW);
+		mqttEnabled = MQTTSystemConnect(false);
+
+		mqtt2 = mqtt;
+		mqtt2Enabled = true;
+
 		// BOOT: MQTT Established
 		MATRIXsetStatus(16);
 
@@ -330,11 +341,26 @@ void KniwwelinoLib::setSilent() {
 		return ((WiFi.status() == WL_CONNECTED) && mqtt.connected());
 	}
 
+	/*
+	 * Disables all I2C stuff related to the Matrix/Button driver chip
+	 */
 	void KniwwelinoLib::bgI2CStop() {
 		bgI2C=false;
 	}
+
+	/*
+	 * Enables all I2C stuff related to the Matrix/Button driver chip
+	 */
 	void KniwwelinoLib::bgI2CStart() {
 		bgI2C=true;
+	}
+
+	/*
+	 * set a callback function that will be called regularly during wait and each loop pass.
+	 * usefull for libraries that need to be ticked regularly (e.g. Neopixel Effects)
+	 */
+	void KniwwelinoLib::setBGTask(BGTask task) {
+		bgTask = task;
 	}
 
 	/*
@@ -352,6 +378,14 @@ void KniwwelinoLib::setSilent() {
 
 				if (mqttEnabled && mqtt.connected()) {
 					mqtt.loop();
+				}
+
+				if (mqtt2Enabled && mqtt2.connected()) {
+					mqtt2.loop();
+				}
+
+				if ( bgTask != nullptr ) {
+					bgTask();
 				}
 
 				sleepMillis = till - millis();
@@ -379,6 +413,22 @@ void KniwwelinoLib::setSilent() {
 	    		mqtt.loop();
 	    		_MQTTupdateStatus(false);
 	    	}
+	    }
+	    if (mqtt2Enabled) {
+	    	if (!mqtt2.connected()) {
+	    		MQTTUserConnect(true);
+	    	}
+	    	if (mqtt2.connected()) {
+	    		mqtt2.loop();
+	    	}
+	    }
+
+		if ( bgTask != nullptr ) {
+			bgTask();
+		}
+
+	    if(Serial.available()) {
+	    	serialEvent();
 	    }
 	}
 
@@ -432,7 +482,7 @@ void KniwwelinoLib::setSilent() {
 		if (pinBlinkCount > 10) {
 			pinBlinkCount = 1;
 		}
-		
+
 		for (int i = 0; i < sizeof(ioPinNumers); i++) {
 			if (ioPinStatus[i] == PIN_UNUSED) {
 				continue;
@@ -514,6 +564,10 @@ void KniwwelinoLib::setSilent() {
 		  }
 	}
 
+	/*
+	 * Set the specified I/O Pin of the board to be used
+	 * with a connected button.
+	 */
 	void KniwwelinoLib::PINenableButton(uint8_t pin) {
 		pinMode(pin, INPUT_PULLUP);
 		switch (pin) {
@@ -532,6 +586,14 @@ void KniwwelinoLib::setSilent() {
 		}
 	}
 
+	/*
+	 * Check if anb external Button on the specified has been clicked (pressed-released) since the last check.
+	 *
+	 * click state will be reset after checking,
+	 * means calling this method twice it will report true, false.
+	 *
+	 * return true if yes, false if no.
+	 */
 	boolean KniwwelinoLib::PINbuttonClicked(uint8_t pin) {
     	if (!digitalRead(pin)) return false; // still pressed
 
@@ -558,6 +620,11 @@ void KniwwelinoLib::setSilent() {
     	return (clicked);
 	}
 
+	/*
+	 * Check if an external Button on the specified pin is pressed right now.
+	 *
+	 * return true if yes, false if no.
+	 */
 	boolean KniwwelinoLib::PINbuttonDown(uint8_t pin) {
 		return !digitalRead(pin);
 	}
@@ -566,7 +633,7 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * Set the RGB LED of the board to show the given color.
-	 * col = color to show as String in format #FF00FF
+	 * col = color to show as String in format FF00FF
 	 * first 2 digits specify the RED, second the GREEN, third the BLUE component.
 	 */
 	void KniwwelinoLib::RGBsetColor(String col) {
@@ -578,7 +645,7 @@ void KniwwelinoLib::setSilent() {
 	 * Set the RGB LED of the board to show the given color and effect.
 	 * col = color to show as String in format #FF00FF
 	 * first 2 digits specify the RED, second the GREEN, third the BLUE component.
-	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
+	 * effect = on of 10(RGB_ON)/5(RGB_BLINK)/1(RGB_FLASH)/0(RGB_OFF)/20(RGB_SPARK)/21(RGB_GLOW)
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetColorEffect(String col, uint8_t effect, int count) {
@@ -597,13 +664,21 @@ void KniwwelinoLib::setSilent() {
 	/*
 	 * Set the RGB LED of the board to show the given color.
 	 * col = color to show as 32 bit int.
-	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
+	 * effect = on of 10(RGB_ON)/5(RGB_BLINK)/1(RGB_FLASH)/0(RGB_OFF)/20(RGB_SPARK)/21(RGB_GLOW)
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetColorEffect(unsigned long color, uint8_t effect, int count) {
 	     RGBsetColorEffect((uint8_t)(color >> 16) ,(uint8_t)(color >>  8), (uint8_t)color, effect, count);
 	}
 
+	/*
+	 * Set the RGB LED of the board to show the given color and effect.
+	 * String colorEffect = "color:effect:duration"
+	 *
+	 * color to show as String in format FF00FF, first 2 digits specify the RED, second the GREEN, third the BLUE component.
+	 * effect = on of 10(RGB_ON)/5(RGB_BLINK)/1(RGB_FLASH)/0(RGB_OFF)/20(RGB_SPARK)/21(RGB_GLOW)
+	 * duration = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
+	 */
 	void KniwwelinoLib::RGBsetColorEffect(String colorEffect) {
 		int pos = 0, lastpos = 0;
 		String color = "";
@@ -644,7 +719,7 @@ void KniwwelinoLib::setSilent() {
 	 * red = 	RED color component (0-255)
 	 * green = 	GREEN color component (0-255)
 	 * blue = 	BLUE color component (0-255)
-	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
+	 * effect = on of 10(RGB_ON)/5(RGB_BLINK)/1(RGB_FLASH)/0(RGB_OFF)/20(RGB_SPARK)/21(RGB_GLOW)
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetColorEffect(uint8_t red ,uint8_t green, uint8_t blue, uint8_t effect, int count) {
@@ -659,7 +734,7 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * Set the RGB LED of the board to show the given effect.
-	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
+	 * effect = on of 10(RGB_ON)/5(RGB_BLINK)/1(RGB_FLASH)/0(RGB_OFF)/20(RGB_SPARK)/21(RGB_GLOW)
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetEffect(uint8_t effect, int count) {
@@ -797,7 +872,7 @@ void KniwwelinoLib::setSilent() {
 	   }
 	   return val;
 	}
-	
+
 	/*
 	 * Helper function to convert a given color hue (0-255)
 	 * to a 32bit int color.
@@ -817,20 +892,37 @@ void KniwwelinoLib::setSilent() {
 	  }
 	}
 
+
+	/*
+	 * Helper function to convert a given 8bit int color
+	 * to a color HEX String like FF
+	 */
 	String KniwwelinoLib::RGB82Hex(uint8_t c) {
 		String s =  String(String(c<16?"0":"") + String(c, HEX));
 		s.toUpperCase();
 		return s;
 	}
 
+	/*
+	 * Helper function to convert a given 32bit int color
+	 * to a RGB color HEX String like FF00FF
+	 */
 	String KniwwelinoLib::RGBcolor2Hex(unsigned long color) {
 		return String(RGB82Hex((uint8_t)(color >> 16)) + RGB82Hex((uint8_t)(color >>  8)) + RGB82Hex((uint8_t)color));
 	}
-	
+
+	/*
+	 * Helper function to convert a given color hue (0-255)
+	 * to a RGB color HEX String like FF00FF
+	 */
 	String KniwwelinoLib::RGBhue2Hex(uint8_t hue) {
 		return Kniwwelino.RGBcolor2Hex(Kniwwelino.RGBhue2int(hue));
 	}
 
+	/*
+	 * Helper function to convert 3 8bit color values
+	 * to a RGB color HEX String like FF00FF
+	 */
 	String KniwwelinoLib::RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b) {
 	  return String(RGB82Hex(r) + RGB82Hex(g) + RGB82Hex(b));
 	}
@@ -999,7 +1091,7 @@ void KniwwelinoLib::setSilent() {
 	 * y = pixel row
 	 * on = true-> Pixel on, false->Pixel off.
 	 */
-    void KniwwelinoLib::MATRIXsetPixel(uint8_t x, uint8_t y, uint8_t on) {
+    void KniwwelinoLib::MATRIXsetPixel(uint8_t x, uint8_t y, boolean on) {
     	matrixText = "";
     	matrixCount = -1;
     	drawPixel(x, y, on);
@@ -1013,10 +1105,6 @@ void KniwwelinoLib::setSilent() {
     	// kniwwelino hardware specific: mirror cols
     	int x1 = 4 - x;
     	int y1 = y;
-    	// swap x/y
-//    	int a = x;
-//    	x = y;
-//    	y = a;
 
   	  if (rotation == 0) {
   		  x = y1;
@@ -1036,7 +1124,6 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * Sets the blink rate of the matrix.
-	 *
 	 * b = Blink Rate (one of: MATRIX_STATIC/MATRIX_BLINK_2HZ/MATRIX_BLINK_1HZ/MATRIX_BLINK_HALFHZ)
 	 */
 	void KniwwelinoLib::MATRIXsetBlinkRate(uint8_t b) {
@@ -1048,7 +1135,6 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * Sets the brightness of the matrix.
-	 *
 	 * b = Brightness (range 1-15)
 	 */
 	void KniwwelinoLib::MATRIXsetBrightness(uint8_t b) {
@@ -1060,7 +1146,6 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * Sets the scrolling speed of the Matrix.
-	 *
 	 * speed = Speed (range 1-10)
 	 */
 	void KniwwelinoLib::MATRIXsetScrollSpeed(uint8_t speed) {
@@ -1079,7 +1164,21 @@ void KniwwelinoLib::setSilent() {
 		redrawMatrix = true;
 	}
 
+	/*
+	 * Lids 0-25 pixels of the matrix
+	 */
+    void KniwwelinoLib::MATRIXsetPixels(uint8_t s) {
+    	if (idShowing) return;
 
+    	for(int i=0; i < 25; i++) {
+    		MATRIXsetPixel(i%5, i/5, s>=i);
+    	}
+    }
+
+	/*
+	 * Sets the Matrix to a status value between 0-25
+	 * where 0 to 25 LED will be switched off
+	 */
     void KniwwelinoLib::MATRIXsetStatus(uint8_t s) {
     	if (idShowing) return;
 
@@ -1121,7 +1220,12 @@ void KniwwelinoLib::setSilent() {
 		return (matrixCount == 0);
 	}
 
-	void KniwwelinoLib::setRotation(uint8_t rot) {
+
+	/*
+	 * Set rotation setting for display
+	 * 0 thru 3 corresponding to 4 cardinal rotations
+	 */
+	void KniwwelinoLib::MATRIXsetRotation(uint8_t rot) {
 		rotation = rot;
 	}
 
@@ -1139,9 +1243,6 @@ void KniwwelinoLib::setSilent() {
     	  // kniwwelino hardware specific: mirror cols
     	  int x1 = 4 - x;
     	  int y1 = y;
-    	  // swap x/y
-    	  //x = y1;
-    	  //y = x1;
 
     	  if (rotation == 0) {
     		  x = y1;
@@ -1416,6 +1517,7 @@ void KniwwelinoLib::setSilent() {
 			  retries++;
 			  delay(500);
 		  }
+		  if (WiFi.status() == WL_CONNECTED) DEBUG_PRINT("WIFI Connected! ");
 		  DEBUG_PRINT("IP: ");DEBUG_PRINTLN(getIP());
 
 	  } else {
@@ -1425,10 +1527,11 @@ void KniwwelinoLib::setSilent() {
 		//forced Wifi Configuration Modus if not connected anyway
 		//read file
 		boolean forcedMode = false;
+		DEBUG_PRINTLN("checking existence of forced wifi conf");
 		String forcedWifiConf = FILEread(FILE_FORCED_WIFI);
-		DEBUG_PRINTLN("read forced wifi conf");//DEBUG_PRINT(forcedWifiConf);
-	  DEBUG_PRINTLN("-----------------");
-		if (forcedWifiConf.length() > 0) {
+		//DEBUG_PRINTLN(forcedWifiConf);
+
+		if (forcedWifiConf.length() > 5) {
 
 			//parce file content.
 			int pos = forcedWifiConf.indexOf("=");
@@ -1582,21 +1685,21 @@ void KniwwelinoLib::setSilent() {
 	//==== IOT: MQTT functions ==============================================
 
 	/*
-	 * internal function to setup the mqtt connection
-	 * function is called during setup
+	 * Use your own MQTT Broker for all MEssage related stuff.
 	 *
-	 * NO NEED TO CALL THIS FUNCTION MANUALLY
-	 *
+	 * Programming and Update Messages will still use code.kniwwelino.lu
+	 * Needs to be called directly after Kniwwelino.begin();
 	 */
-	boolean KniwwelinoLib::MQTTsetup(const char broker[], int port, const char user[], const char  password[]) {
+	boolean KniwwelinoLib::MQTTUserSetup(const char broker[], int port, const char user[], const char  password[]) {
 		IPAddress brokerIP;
 		WiFi.hostByName(broker, brokerIP);
-		DEBUG_PRINT(F("Setting up MQTT Broker: "));DEBUG_PRINT(broker);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
-		mqtt.begin(broker, port, wifi);
-		mqtt.onMessage(Kniwwelino._MQTTmessageReceived);
-		strcpy(Kniwwelino.mqttUser, user);
-		strcpy(Kniwwelino.mqttPW, password);
-		mqttEnabled = MQTTconnect(false);
+		DEBUG_PRINT(F("Setting up User MQTT Broker: "));DEBUG_PRINT(broker);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
+		mqtt2.begin(broker, port, wifi2);
+		mqtt2.onMessage(Kniwwelino._MQTTMessageReceived);
+		strcpy(Kniwwelino.mqtt2User, user);
+		strcpy(Kniwwelino.mqtt2PW, password);
+		mqtt2Enabled =  MQTTUserConnect(false);
+		return mqtt2Enabled;
 	}
 
 
@@ -1608,10 +1711,10 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
 	boolean KniwwelinoLib::MQTTconnect() {
-		return MQTTconnect(true);
+		return MQTTSystemConnect(true);
 	}
 
-	boolean KniwwelinoLib::MQTTconnect(boolean silent) {
+	boolean KniwwelinoLib::MQTTSystemConnect(boolean silent) {
 		// do nothing if connected
 		if (mqtt.connected()) {
 			return true;
@@ -1629,7 +1732,7 @@ void KniwwelinoLib::setSilent() {
 
 
 		uint8_t retries = 0;
-		DEBUG_PRINT(F(" Connecting to MQTT "));
+		DEBUG_PRINT(F(" Connecting to System MQTT "));
 		while (!mqtt.connect(c_clientID, Kniwwelino.mqttUser, Kniwwelino.mqttPW)&& retries < 20) {
 			DEBUG_PRINT(".");
 			if (!silent) {
@@ -1656,6 +1759,50 @@ void KniwwelinoLib::setSilent() {
 
 			_MQTTupdateStatus(true);
 
+			if (! silent) Kniwwelino.RGBsetColor(STATE_MQTT);
+			return true;
+		} else {
+			DEBUG_PRINTLN("\nUnable to connect to MQTT!");
+			Kniwwelino.RGBsetColor(STATE_ERR);
+			return false;
+		}
+	}
+
+
+	boolean KniwwelinoLib::MQTTUserConnect(boolean silent) {
+		// do nothing if connected
+		if (mqtt2.connected()) {
+			return true;
+		}
+
+		// stop if no Wifi is available.
+		if (!WIFIsetup(false, true, true)) {
+			return false;
+		}
+
+		if (! silent) Kniwwelino.RGBsetColorEffect(STATE_MQTT, RGB_BLINK, RGB_FOREVER);
+
+		char c_clientID[(getName()).length()+1];
+		getName().toCharArray(c_clientID, sizeof(c_clientID)+1);
+
+		uint8_t retries = 0;
+		DEBUG_PRINT(F(" Connecting to User MQTT "));DEBUG_PRINT(Kniwwelino.mqtt2User); DEBUG_PRINT(" ");DEBUG_PRINT(Kniwwelino.mqtt2PW);
+		while (!mqtt2.connect(c_clientID, Kniwwelino.mqtt2User, Kniwwelino.mqtt2PW)&& retries < 20) {
+			DEBUG_PRINT(".");
+			if (!silent) {
+				if (retries%2 == 0) {
+					MATRIXsetStatus(16);
+				} else {
+					MATRIXsetStatus(15);
+				}
+			}
+			retries++;
+			delay(1000);
+		}
+
+		if (mqtt2.connected())  {
+			DEBUG_PRINTLN(" CONNECTED");
+
 			// resubscribe to topics
 			for (int j=9; j>-1; j--) {
 			      if(Kniwwelino.mqttSubscriptions[j] != "") {
@@ -1666,7 +1813,7 @@ void KniwwelinoLib::setSilent() {
 			if (! silent) Kniwwelino.RGBsetColor(STATE_MQTT);
 			return true;
 		} else {
-			DEBUG_PRINTLN("\nUnable to connect to MQTT!");
+			DEBUG_PRINTLN("\nUnable to connect to User MQTT!");
 			Kniwwelino.RGBsetColor(STATE_ERR);
 			return false;
 		}
@@ -1704,9 +1851,9 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTpublish(const char topic[], String message) {
-    	if (!mqttEnabled || ! MQTTconnect()) return false;
+    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
     	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(mqttGroup + topic);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(message);
-    	boolean retVal =  mqtt.publish(mqttGroup + topic, message);
+    	boolean retVal =  mqtt2.publish(mqttGroup + topic, message);
     	return retVal;
     }
 
@@ -1719,9 +1866,9 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTpublish(String topic, String message) {
-    	if (!mqttEnabled || ! MQTTconnect()) return false;
+    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
     	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(mqttGroup + topic);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(message);
-    	boolean retVal =  mqtt.publish(mqttGroup + topic, message);
+    	boolean retVal =  mqtt2.publish(mqttGroup + topic, message);
     	return retVal;
     }
 
@@ -1737,12 +1884,12 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTsubscribe(const char topic[]) {
-    	if (!mqttEnabled || !MQTTconnect()) return false;
+    	if (!mqtt2Enabled || !MQTTUserConnect(true)) return false;
 
     	String s_topic = mqttGroup + String(topic);
 
     	DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(s_topic);
-    	boolean ok = mqtt.subscribe(s_topic);
+    	boolean ok = mqtt2.subscribe(s_topic);
 
     	// stored new subscription
     	for (int j=9; j>0; j--) {
@@ -1764,10 +1911,10 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTsubscribe( String s_topic) {
-    	if (!mqttEnabled || !MQTTconnect()) return false;
+    	if (!mqtt2Enabled || !MQTTUserConnect(true)) return false;
 
     	DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(mqttGroup + s_topic);
-    	boolean ok = mqtt.subscribe(mqttGroup + s_topic);
+    	boolean ok = mqtt2.subscribe(mqttGroup + s_topic);
 
     	// stored new subscription
     	for (int j=9; j>0; j--) {
@@ -1786,12 +1933,12 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTunsubscribe(const char topic[]) {
-    	if (!mqttEnabled || ! MQTTconnect()) return false;
+    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
 
     	String s_topic = mqttGroup + String(topic);
 
     	DEBUG_PRINT(F("MQTTunsubscribe: "));DEBUG_PRINTLN(s_topic);
-    	boolean ok = mqtt.unsubscribe(s_topic);
+    	boolean ok = mqtt2.unsubscribe(s_topic);
 
     	// delete stored subscription
     	for (int j=9; j>-1; j--) {
@@ -1911,8 +2058,8 @@ void KniwwelinoLib::setSilent() {
 	 * internal function to handle incoming messages on subscribed topics.
 	 *
 	 */
-    void KniwwelinoLib::_MQTTmessageReceived(String &topic, String &payload) {
-    	DEBUG_PRINT("MQTT messageReceived: ");
+    void KniwwelinoLib::_MQTTMessageReceived(String &topic, String &payload) {
+    	DEBUG_PRINT("MQTT Message Received: ");
     	DEBUG_PRINT(topic);
     	DEBUG_PRINT(": ");
     	if (payload) DEBUG_PRINTLN(""+payload);
@@ -1939,26 +2086,31 @@ void KniwwelinoLib::setSilent() {
 				mqttLogEnabled = false;
 			}
 
-		// for simple LED and MAtrix functionalities
+			// for simple LED and MAtrix functionalities
     	} else if (Kniwwelino.mqttRGB && topic.startsWith(Kniwwelino.mqttGroup + MQTT_RGBCOLOR)) {
-    		Kniwwelino.RGBsetColorEffect(payload);
-    	} else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXICON)) {
-    		Kniwwelino.MATRIXdrawIcon(payload);
-    	} else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXTEXT)) {
-    		if (!payload || payload.length() == 0) {
-    			Kniwwelino.MATRIXclear();
-    		} else {
-    			Kniwwelino.MATRIXwrite(payload, MATRIX_FOREVER, false);
-    		}
-    	}
+	    		Kniwwelino.RGBsetColorEffect(payload);
+	    } else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXICON)) {
+	    		Kniwwelino.MATRIXdrawIcon(payload);
+	    } else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXTEXT)) {
+	    		if (!payload || payload.length() == 0) {
+	    			Kniwwelino.MATRIXclear();
+	    		} else {
+	    			Kniwwelino.MATRIXwrite(payload, MATRIX_FOREVER, false);
+	    		}
+	    }
 
-    	// for everything else -> call external callback function.
-    	if (mqttCallback != nullptr) {
-        	topic.replace(Kniwwelino.mqttGroup, "");
-    		mqttCallback(topic, payload);
-    	}
+	    // for everything else -> call external callback function.
+	    if (mqttCallback != nullptr) {
+	        topic.replace(Kniwwelino.mqttGroup, "");
+	    	mqttCallback(topic, payload);
+	    }
     }
 
+
+	/*
+	 * internal function to send the status of the Kniwwelino to the MQTT Broker.
+	 * called on startup and regularly
+	 */
     void KniwwelinoLib::_MQTTupdateStatus(boolean force) {
     	if (force || ((millis()-mqttLastPublished)/1000 > mqttPublishDelay)) {
     		if (!mqttEnabled || ! MQTTconnect()) return;
@@ -1980,9 +2132,7 @@ void KniwwelinoLib::setSilent() {
     boolean KniwwelinoLib::PLATFORMcheckFWUpdate() {
     	if (!updateMode) return true;
 		Kniwwelino.RGBsetColorEffect(STATE_UPDATE, RGB_BLINK, RGB_FOREVER);
-		//Kniwwelino.MATRIXdrawIcon(ICON_ARROW_DOWN);
 		Kniwwelino.MATRIXdrawIcon("B0010000100101010111000100:1:-1");
-
 
 		DEBUG_PRINT(getTime());
 		DEBUG_PRINT(F(" UPDATE: Checking for FW Update at: "));
@@ -2076,7 +2226,6 @@ void KniwwelinoLib::setSilent() {
 
 	/*
 	 * internal function to update the config from a given JSON object.
-	 *
 	 */
     boolean KniwwelinoLib::PLATFORMupdateConf(String confJSON) {
     	DynamicJsonBuffer jsonBuffer;
@@ -2203,6 +2352,43 @@ void KniwwelinoLib::setSilent() {
       }
       return;
     }
+
+//==== Serial Input Callback========================================
+
+	void KniwwelinoLib::serialEvent() {
+	  stringComplete = false;
+	  inputString = "";
+	  while (Serial.available()) {
+	    char inChar = (char)Serial.read();
+	    inputString += inChar;
+	    if (inChar == '\n') {
+	      stringComplete = true;
+	      DEBUG_PRINTLN(inputString);
+	    }
+	  }
+
+	  if (stringComplete && inputString.startsWith(SERIAL_RESET)) {
+		  DEBUG_PRINTLN("rebooting Kniwwelino...byebye");
+		  ESP.restart();
+	  } else if (stringComplete && inputString.startsWith(SERIAL_WIFI_CLEAR)) {
+		  FILEwrite(FILE_WIFI, "");
+		  DEBUG_PRINTLN(F("Wifi Conf Resettet"));
+	  } else if (stringComplete && inputString.startsWith(SERIAL_WIFI_ADD)) {
+		  inputString.replace(SERIAL_WIFI_ADD+String(":"), "");
+		  String wifiConf = FILEread(FILE_WIFI);
+		  // add current wifi if not in file.
+		  if (wifiConf.indexOf(inputString) == -1 && inputString.indexOf('=') > 0) {
+			DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(inputString);
+		  	wifiConf = inputString + wifiConf;
+		  	//DEBUG_PRINTLN(wifiConf);
+		  	FILEwrite(FILE_WIFI, wifiConf);
+		  	DEBUG_PRINTLN(F("Wifi Stored"));
+		  }
+	  } else if (stringComplete && inputString.startsWith(SERIAL_UPDATING)) {
+		  Kniwwelino.MATRIXdrawIcon("B0010000100101010111000100:1:-1");
+		  Kniwwelino.RGBsetColorEffect(STATE_UPDATE, RGB_BLINK, RGB_FOREVER);
+	  }
+ 	}
 
 //==== Tone functions ==============================================
 

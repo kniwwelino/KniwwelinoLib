@@ -40,14 +40,15 @@ void setup() {
 
   Serial.println("RED");
   Kniwwelino.RGBsetColor(255, 0, 0);
-  delay(300);
+  delay(1000);
   Serial.println("GREEN");
   Kniwwelino.RGBsetColor(0, 255, 0);
-  delay(300);
+  delay(1000);
   Serial.println("BLUE");
   Kniwwelino.RGBsetColor(0, 0, 255);
-  delay(300);
+  delay(1000);
   Kniwwelino.RGBclear();
+  delay(2000);
 
   randomSeed(analogRead(A0));
 

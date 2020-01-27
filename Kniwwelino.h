@@ -45,8 +45,8 @@
 // comment to disable debugging output via serial port.
 #define DEBUG
 
-#define LIB_VERSION "kniwwelinoLIB_1.2.1"
-#define FW_VERSION 	"kniwwelino_121"
+#define LIB_VERSION "kniwwelinoLIB_1.3.0"
+#define FW_VERSION 	"kniwwelino_130"
 
 #define DEF_TYPE    "Kniwwelino"
 #define NAME_PREFIX "Kniwwelino"
@@ -133,6 +133,11 @@
 #define MQTT_MATRIXICON	      	"MATRIX/ICON"
 #define MQTT_MATRIXTEXT	      	"MATRIX/TEXT"
 
+#define SERIAL_RESET			"RESET"
+#define SERIAL_WIFI_CLEAR	    "WIFI_CLEAR"
+#define SERIAL_WIFI_ADD	      	"WIFI_ADD"
+#define SERIAL_UPDATING	      	"UPDATING"
+
 #define NTP_SERVER			  	"lu.pool.ntp.org"
 #define NTP_PORT			  	8888
 #define NTP_TIMEZONE			1
@@ -140,6 +145,10 @@
 
 static uint32_t _tick = 0;
 static boolean mqttLogEnabled = false;
+
+typedef void (*BGTask) ();
+static BGTask bgTask;
+
 
 class KniwwelinoLib: public Adafruit_GFX {
 public:
@@ -163,6 +172,7 @@ public:
 		boolean isConnected();
 		void bgI2CStop();
 		void bgI2CStart();
+		void setBGTask(BGTask task);
 
 //====  logging  =============================================================
 
@@ -199,7 +209,7 @@ public:
 		String RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b);
 		String RGBhue2Hex(uint8_t hue);
 		String RGB82Hex(uint8_t c);
-		
+
 
 //==== LED MATRIX functions ==================================================
 
@@ -217,8 +227,9 @@ public:
 		void MATRIXclear();
 		void MATRIXshowID();
 		boolean MATRIXtextDone();
+		void MATRIXsetPixels(uint8_t p);
 		void MATRIXsetStatus(uint8_t p);
-		void setRotation(uint8_t rotation);
+		void MATRIXsetRotation(uint8_t rotation);
 
 //==== Onboard Button functions ==============================================
 
@@ -231,11 +242,13 @@ public:
 //==== IOT functions ==============================================
 
 		boolean WIFIsetup(boolean wifiMgr, boolean fast, boolean reconnecting);
+
 		MQTTClient mqtt;
-		boolean MQTTsetup(const char broker[], int port, const char user[],
-				const char password[]);
+		MQTTClient mqtt2;
+		boolean MQTTUserSetup(const char broker[], int port, const char user[],	const char password[]);
 		boolean MQTTconnect();
-		boolean MQTTconnect(boolean silent);
+		boolean MQTTSystemConnect(boolean silent);
+		boolean MQTTUserConnect(boolean silent);
 		boolean MQTTpublish(const char topic[], String message);
 		boolean MQTTpublish(String topic, String message);
 		boolean MQTTsubscribe(const char topic[]);
@@ -256,6 +269,10 @@ public:
 		String FILEread(String fileName);
 		void FILEwrite(String fileName, String content);
 
+//==== Serial functions ============================================
+
+		void serialEvent();
+
 //==== Tone functions ==============================================
 
 		void playNote(uint8_t pin, unsigned int note, uint8_t noteDuration);
@@ -268,14 +285,13 @@ public:
 //==== Private functions =====================================================
 
 	private:
-
 		static void _baseTick();
 		void _PINhandle();
 		void _RGBblink();
 		void drawPixel(int16_t x, int16_t y, uint16_t color); // Draw a specific pixel
 		void _MATRIXupdate();
 		void _Buttonsread();
-		static void _MQTTmessageReceived(String &topic, String &payload);
+		static void _MQTTMessageReceived(String &topic, String &payload);
 		void _MQTTupdateStatus(boolean force);
 		boolean PLATFORMcheckFWUpdate();
 		boolean PLATFORMcheckConfUpdate();
@@ -345,6 +361,7 @@ public:
 		// Wifi
 		boolean wifiEnabled = true;
 		WiFiClient wifi;
+		WiFiClient wifi2;
 		// mqtt
 		boolean mqttEnabled = false;
 		char updateServer[20];
@@ -352,6 +369,11 @@ public:
 		int mqttPort = DEF_MQTTPORT;
 		char mqttUser[20];
 		char mqttPW[20];
+
+		char mqtt2User[20];
+		char mqtt2PW[20];
+		boolean mqtt2Enabled = false;
+
 		int mqttPublishDelay = DEF_MQTTPUBLICDELAY;
 		String mqttSubscriptions[10] = { "", "", "", "", "", "", "", "", "", "" };
 		String mqttTopicReqPwd = "/management/to/" + WiFi.macAddress()+ "/reqBrokerPwd";
@@ -375,6 +397,9 @@ public:
 		TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     //Central European Summer Time
 		TimeChangeRule CET = {"CET", Last, Sun, Oct, 3, 60};       //Central European Standard Time
 		Timezone timeZone = Timezone(CEST, CET);
+
+		String inputString = "";         // a String to hold incoming data
+		boolean stringComplete = false;  // whether the string is complete
 	};
 
 	extern KniwwelinoLib Kniwwelino;
