@@ -25,6 +25,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoPixel.h>
+#include <Fonts/TomThumb.h>
 
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
@@ -38,7 +39,6 @@
 #include <FS.h>
 #include <MQTTClient.h>
 
-#include <ArduinoJson.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
@@ -148,7 +148,6 @@ static boolean mqttLogEnabled = false;
 
 typedef void (*BGTask) ();
 static BGTask bgTask;
-
 
 class KniwwelinoLib: public Adafruit_GFX {
 public:
@@ -294,8 +293,6 @@ public:
 		static void _MQTTMessageReceived(String &topic, String &payload);
 		void _MQTTupdateStatus(boolean force);
 		boolean PLATFORMcheckFWUpdate();
-		boolean PLATFORMcheckConfUpdate();
-		boolean PLATFORMupdateConf(String confJSON);
 
 		void _initNTP();
 	    time_t _getNtpTime();
@@ -312,10 +309,8 @@ public:
 
 		// always updateable - for now...
 		boolean updateMode = true;
-
 		// silent mode
 		boolean silent = false;
-
 		// background i2c operations active
 		boolean bgI2C = true;
 
@@ -364,32 +359,22 @@ public:
 		WiFiClient wifi2;
 		// mqtt
 		boolean mqttEnabled = false;
-		char updateServer[20];
-		char mqttServer[20];
-		int mqttPort = DEF_MQTTPORT;
-		char mqttUser[20];
-		char mqttPW[20];
 
 		char mqtt2User[20];
 		char mqtt2PW[20];
 		boolean mqtt2Enabled = false;
 
 		int mqttPublishDelay = DEF_MQTTPUBLICDELAY;
+
 		String mqttSubscriptions[10] = { "", "", "", "", "", "", "", "", "", "" };
-		String mqttTopicReqPwd = "/management/to/" + WiFi.macAddress()+ "/reqBrokerPwd";
-		String mqttTopicUpdate = "/management/to/" + WiFi.macAddress()+ "/update";
-		String mqttTopicLogEnabled = "/management/to/" + WiFi.macAddress()+ "/enableMQTTLog";
-		String mqttTopicSentPwd = "/management/from/" + WiFi.macAddress()+ "/resBrokerPwd";
-		String mqttTopicStatus = "/management/from/" + WiFi.macAddress()+ "/status";
+		String mqttTopicUpdate = "/management/to/";
+		String mqttTopicLogEnabled = "/management/to/";
+		String mqttTopicStatus = "/management/from/";
 		String mqttGroup = "";
+
 		uint32_t mqttLastPublished = 0;
 		boolean mqttRGB = false;
 		boolean mqttMATRIX = false;
-
-		// plattform / conf
-		char platformPW[20];
-		char confPersonalParameters[256];
-		JsonObject* myParameters;
 
 		// DateTime / NTP Stuff
 		WiFiUDP ntpUdp;
@@ -397,9 +382,6 @@ public:
 		TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     //Central European Summer Time
 		TimeChangeRule CET = {"CET", Last, Sun, Oct, 3, 60};       //Central European Standard Time
 		Timezone timeZone = Timezone(CEST, CET);
-
-		String inputString = "";         // a String to hold incoming data
-		boolean stringComplete = false;  // whether the string is complete
 	};
 
 	extern KniwwelinoLib Kniwwelino;

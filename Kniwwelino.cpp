@@ -13,10 +13,6 @@
 
 #include "Kniwwelino.h"
 
-#include <Adafruit_NeoPixel.h>
-#include "Adafruit_GFX.h"
-#include <Fonts/TomThumb.h>
-
 //-- DEBUG Helpers -------------
 #ifdef DEBUG
 	#define DEBUG_PRINT(x)         Kniwwelino.log (String(x))
@@ -128,21 +124,21 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 	fillRect(0,0, 5, 5, 1);
 	DEBUG_PRINT(F(" MATRIX:On"));
 
+	String mac = WiFi.macAddress();
+	mac.replace(":","");
+
+	// init topics
+	mqttTopicUpdate += mac;
+	mqttTopicUpdate += "/update";
+	mqttTopicLogEnabled += mac;
+	mqttTopicLogEnabled += "/enableMQTTLog";
+	mqttTopicStatus += mac;
+	mqttTopicStatus += "/status";
+
 	// init variables with defaults
-	mqttTopicUpdate.replace(":","");
-	mqttTopicReqPwd.replace(":","");
-	mqttTopicLogEnabled.replace(":","");
-	mqttTopicSentPwd.replace(":","");
-	mqttTopicStatus.replace(":","");
-	strncpy(updateServer, DEF_UPDATESERVER, sizeof(DEF_UPDATESERVER));
-	strncpy(mqttServer, DEF_MQTTSERVER, sizeof(DEF_MQTTSERVER));
-	strncpy(mqttUser, 	DEF_MQTTUSER, sizeof(DEF_MQTTUSER));
-	strncpy(mqttPW, 	DEF_MQTTPW, sizeof(DEF_MQTTPW));
 	strncpy(fwVersion, 	nameStr, strlen(nameStr));
 
 	getName().toCharArray(nodename, getName().length());
-	DynamicJsonBuffer jsonBuffer;
-	myParameters = &jsonBuffer.createObject();
 	mqttGroup = DEF_MQTTBASETOPIC;
 
 	// BOOT: vars initialized
@@ -159,18 +155,6 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 
 	// BOOT: filesystem mounted
 	MATRIXsetStatus(2);
-
-	// init Variables from stored config
-	DEBUG_PRINT(F(" Config:"));
-	String conf = Kniwwelino.FILEread(FILE_CONF);
-	yield();
-	if (conf.length() > 10) {
-		Kniwwelino.PLATFORMupdateConf(conf);
-		yield();
-		DEBUG_PRINT(F("OK "));
-	}
-	// BOOT: plattform config read
-	MATRIXsetStatus(3);
 
 	Kniwwelino.RGBclear();
 
@@ -212,12 +196,12 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 
 		// start connection to system mqtt
 		IPAddress brokerIP;
-		WiFi.hostByName(mqttServer, brokerIP);
-		DEBUG_PRINT(F("Setting up System MQTT Broker: "));DEBUG_PRINT(mqttServer);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
-		mqtt.begin(mqttServer, mqttPort, wifi);
+		WiFi.hostByName(DEF_MQTTSERVER, brokerIP);
+		DEBUG_PRINT(F("Setting up System MQTT Broker: "));DEBUG_PRINT(DEF_MQTTSERVER);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
+		mqtt.begin(DEF_MQTTSERVER, DEF_MQTTPORT, wifi);
 		mqtt.onMessage(Kniwwelino._MQTTMessageReceived);
-		strcpy(Kniwwelino.mqttUser, mqttUser);
-		strcpy(Kniwwelino.mqttPW, mqttPW);
+		//strcpy(Kniwwelino.mqttUser, mqttUser);
+		//strcpy(Kniwwelino.mqttPW, mqttPW);
 		mqttEnabled = MQTTSystemConnect(false);
 
 		mqtt2 = mqtt;
@@ -1733,7 +1717,7 @@ void KniwwelinoLib::setSilent() {
 
 		uint8_t retries = 0;
 		DEBUG_PRINT(F(" Connecting to System MQTT "));
-		while (!mqtt.connect(c_clientID, Kniwwelino.mqttUser, Kniwwelino.mqttPW)&& retries < 20) {
+		while (!mqtt.connect(c_clientID, DEF_MQTTUSER, DEF_MQTTPW)&& retries < 20) {
 			DEBUG_PRINT(".");
 			if (!silent) {
 				if (retries%2 == 0) {
@@ -1752,8 +1736,6 @@ void KniwwelinoLib::setSilent() {
 
 			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicUpdate);
 			mqtt.subscribe(Kniwwelino.mqttTopicUpdate);
-			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicReqPwd);
-			mqtt.subscribe(Kniwwelino.mqttTopicReqPwd);
 			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicLogEnabled);
 			mqtt.subscribe(Kniwwelino.mqttTopicLogEnabled);
 
@@ -2065,19 +2047,13 @@ void KniwwelinoLib::setSilent() {
     	if (payload) DEBUG_PRINTLN(""+payload);
     	else DEBUG_PRINTLN("");
     	// For the Platform update, login etc...
-    	if (topic == Kniwwelino.mqttTopicReqPwd) {
-    		DEBUG_PRINTLN("MQTT->PLATTFORM PW Request");
-        	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(Kniwwelino.mqttTopicSentPwd);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(String(Kniwwelino.platformPW));
-        	Kniwwelino.mqtt.publish(Kniwwelino.mqttTopicSentPwd, String(Kniwwelino.platformPW));
-    	} else if (topic == Kniwwelino.mqttTopicUpdate) {
+    	if (topic == Kniwwelino.mqttTopicUpdate) {
     		DEBUG_PRINTLN("MQTT->PLATTFORM UPDATE Request");
-			if (payload && payload.equals("configuration")) {
-				Kniwwelino.PLATFORMcheckConfUpdate();
-			} else if (payload && payload.equals("firmware")) {
-				if (! Kniwwelino.PLATFORMcheckFWUpdate()) {
-					Kniwwelino.MATRIXwriteAndWait("Update Failed! ");
+				if (payload && payload.equals("firmware")) {
+					if (! Kniwwelino.PLATFORMcheckFWUpdate()) {
+						Kniwwelino.MATRIXwriteAndWait("Update Failed! ");
+					}
 				}
-			}
     	} else if (topic == Kniwwelino.mqttTopicLogEnabled) {
 			DEBUG_PRINTLN("MQTT->PLATTFORM MQTT LOG");
 			if (payload && payload.equals("on")) {
@@ -2114,7 +2090,7 @@ void KniwwelinoLib::setSilent() {
     void KniwwelinoLib::_MQTTupdateStatus(boolean force) {
     	if (force || ((millis()-mqttLastPublished)/1000 > mqttPublishDelay)) {
     		if (!mqttEnabled || ! MQTTconnect()) return;
-    		DEBUG_PRINTLN(F("MQTTpublish Status"));
+    		DEBUG_PRINT(F("MQTTpublish Status to ")); DEBUG_PRINTLN(mqttTopicStatus);
     		mqtt.publish(mqttTopicStatus + "/libversion", LIB_VERSION);
     		mqtt.publish(mqttTopicStatus + "/firmware", fwVersion);
     		mqtt.publish(mqttTopicStatus + "/resetReason", ESP.getResetReason());
@@ -2166,142 +2142,6 @@ void KniwwelinoLib::setSilent() {
 			return true;
 		}
     }
-
-	/*
-	 * internal function to handle over the air config updates
-	 *
-	 */
-    boolean KniwwelinoLib::PLATFORMcheckConfUpdate() {
-		Kniwwelino.RGBsetColorEffect(STATE_UPDATE, RGB_BLINK, RGB_FOREVER);
-		Kniwwelino.MATRIXdrawIcon(ICON_ARROW_DOWN);
-
-		DEBUG_PRINT(F("UPDATE: Checking for Conf Update at: "));
-		DEBUG_PRINTLN(DEF_FWUPDATEURL);
-
-		HTTPClient http;
-		http.begin(updateServer, 80, DEF_CONFUPDATEURL);
-		http.useHTTP10(true);
-		http.setTimeout(8000);
-		http.setUserAgent(F("ESP8266-http-Update"));
-		http.addHeader(F("x-ESP8266-STA-MAC"), WiFi.macAddress());
-		http.addHeader(F("x-ESP8266-AP-MAC"), WiFi.softAPmacAddress());
-		http.addHeader(F("x-ESP8266-free-space"), String(ESP.getFreeSketchSpace()));
-		http.addHeader(F("x-ESP8266-sketch-size"), String(ESP.getSketchSize()));
-		http.addHeader(F("x-ESP8266-chip-size"),
-				String(ESP.getFlashChipRealSize()));
-		http.addHeader(F("x-ESP8266-sdk-version"), ESP.getSdkVersion());
-		http.addHeader(F("x-ESP8266-version"), fwVersion);
-		http.addHeader(F("x-ESP8266-type"), DEF_TYPE);
-		http.addHeader(F("x-ESP8266-conf"), Kniwwelino.FILEread(FILE_CONF));
-
-		DEBUG_PRINT("Sending conf : ");
-		DEBUG_PRINTLN(Kniwwelino.FILEread(FILE_CONF));
-
-		int httpCode = http.POST("");
-		String payload = http.getString();
-
-		DEBUG_PRINT("\tReceived HTTP Code: ");
-		DEBUG_PRINTLN(httpCode + "");
-		DEBUG_PRINT("\tPayload: ");
-		DEBUG_PRINTLN(payload);
-		DEBUG_PRINTLN();
-		http.end();
-
-		if (httpCode == 200) {
-			// parse and update conf
-			if (PLATFORMupdateConf(payload)) {
-				// save conf to flash
-				Kniwwelino.FILEwrite(FILE_CONF, payload);
-
-				//reset after saving config.
-				DEBUG_PRINTLN("Received and Saved new Config -> Rebooting....");
-
-				WiFi.disconnect();
-				ESP.restart();
-				delay(1000);
-			}
-		}
-		return true;
-    }
-
-	/*
-	 * internal function to update the config from a given JSON object.
-	 */
-    boolean KniwwelinoLib::PLATFORMupdateConf(String confJSON) {
-    	DynamicJsonBuffer jsonBuffer;
-    	  JsonObject& json = jsonBuffer.parseObject(confJSON);
-    	  String keyValueArray[8];
-#ifdef DEBUG
-    	    Serial.print("CONFIG: JSON: ");
-    	    json.printTo(Serial);
-#endif
-
-    	  if (json.success()) {
-    	    DEBUG_PRINTLN("\t parsed json");
-
-    	    if (json.containsKey("nodename"))             strcpy(nodename,            	json["nodename"]);
-    	    if (json.containsKey("configupdateserver"))   strcpy(updateServer,  		json["configupdateserver"]);
-    	    if (json.containsKey("configbrokerurl"))      strcpy(mqttServer,     		json["configbrokerurl"]);
-    	    if (json.containsKey("configbrokerport"))     mqttPort =	    			json["configbrokerport"];
-    	    if (json.containsKey("configbrokeruser"))     strcpy(mqttUser,    			json["configbrokeruser"]);
-    	    if (json.containsKey("configbrokerpassword")) strcpy(mqttPW, 				json["configbrokerpassword"]);
-    	    if (json.containsKey("configpublishdelay"))   mqttPublishDelay= 			json["configpublishdelay"];
-    	    if (json.containsKey("fw_version"))           strcpy(fwVersion,          	json["fw_version"]);
-    	    if (json.containsKey("personalParameters"))   strcpy(confPersonalParameters,json["personalParameters"]);
-
-    	    int i = 0;
-    	    char *value, bruteValue[32];
-    	    char tmpValues[256];
-    	    String jValue, key;
-    	    strncpy(tmpValues, confPersonalParameters, 256);
-    	    value = strtok(tmpValues, ",");
-    	    while (value) {
-    	      keyValueArray[i] = value;
-    	      i++;
-    	      value = strtok(0, ",");
-    	    }
-    	    for (i = 0; i < 8; i++) {
-    	      if (keyValueArray[i] != NULL) {
-    	        keyValueArray[i].toCharArray(bruteValue, 32);
-    	        key = strtok(bruteValue, ":");
-    	        jValue = strtok(0, ":");
-#ifdef DEBUG
-    	          Serial.print("key-value pair ");
-    	          Serial.print(key);
-    	          Serial.println(jValue);
-#endif
-    	        myParameters->set(key, jValue);
-    	      }
-    	    }
-
-    	    Kniwwelino.PLATFORMprintConf();
-
-    	    return true;
-    	  } else {
-    		DEBUG_PRINTLN("\t failed to parse json config");
-    	    return false;
-    	  }
-    }
-
-	/*
-	 * internal function to print the current config.
-	 *
-	 */
-    void KniwwelinoLib::PLATFORMprintConf() {
-      // print config
-#ifdef DEBUG
-        Serial.println("CONFIG: ");
-        Serial.print("\t nodename: ");            	Serial.println(nodename);
-        Serial.print("\t updateServer: ");  		Serial.println(updateServer);
-        Serial.print("\t mqttServer: ");     		Serial.println(mqttServer);
-        Serial.print("\t mqttPort: ");    			Serial.println(mqttPort);
-        Serial.print("\t mqttUser: ");    			Serial.println(mqttUser);
-        Serial.print("\t mqttPW: "); 				Serial.println(mqttPW);
-        Serial.print("\t mqttPublishDelay: ");  	Serial.println(mqttPublishDelay);
-        Serial.print("\t PersonalParameters: ");  	Serial.println(confPersonalParameters);
-#endif
-    }
-
 
 	//==== File System functions ==============================================
 
@@ -2356,8 +2196,8 @@ void KniwwelinoLib::setSilent() {
 //==== Serial Input Callback========================================
 
 	void KniwwelinoLib::serialEvent() {
-	  stringComplete = false;
-	  inputString = "";
+	  boolean stringComplete = false;
+	  String inputString = "";
 	  while (Serial.available()) {
 	    char inChar = (char)Serial.read();
 	    inputString += inChar;
@@ -2366,14 +2206,15 @@ void KniwwelinoLib::setSilent() {
 	      DEBUG_PRINTLN(inputString);
 	    }
 	  }
+		if (!stringComplete) return;
 
-	  if (stringComplete && inputString.startsWith(SERIAL_RESET)) {
+	  if (inputString.startsWith(SERIAL_RESET)) {
 		  DEBUG_PRINTLN("rebooting Kniwwelino...byebye");
 		  ESP.restart();
-	  } else if (stringComplete && inputString.startsWith(SERIAL_WIFI_CLEAR)) {
+	  } else if (inputString.startsWith(SERIAL_WIFI_CLEAR)) {
 		  FILEwrite(FILE_WIFI, "");
 		  DEBUG_PRINTLN(F("Wifi Conf Resettet"));
-	  } else if (stringComplete && inputString.startsWith(SERIAL_WIFI_ADD)) {
+	  } else if (inputString.startsWith(SERIAL_WIFI_ADD)) {
 		  inputString.replace(SERIAL_WIFI_ADD+String(":"), "");
 		  String wifiConf = FILEread(FILE_WIFI);
 		  // add current wifi if not in file.
@@ -2384,9 +2225,10 @@ void KniwwelinoLib::setSilent() {
 		  	FILEwrite(FILE_WIFI, wifiConf);
 		  	DEBUG_PRINTLN(F("Wifi Stored"));
 		  }
-	  } else if (stringComplete && inputString.startsWith(SERIAL_UPDATING)) {
-		  Kniwwelino.MATRIXdrawIcon("B0010000100101010111000100:1:-1");
-		  Kniwwelino.RGBsetColorEffect(STATE_UPDATE, RGB_BLINK, RGB_FOREVER);
+	  } else if (inputString.startsWith(SERIAL_UPDATING)) {
+			Kniwwelino.RGBsetColorEffect(STATE_UPDATE, RGB_BLINK, RGB_FOREVER);
+			Kniwwelino.MATRIXdrawIcon("B0010000100101010111000100:1:-1");
+			Kniwwelino.sleep(5000);
 	  }
  	}
 
