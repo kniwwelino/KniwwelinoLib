@@ -23,7 +23,6 @@ Please add the additional Boards Manager URL to the Arduino Preferences :
 The following libraries are required to use the Kniwwelino Arduino Library:
   * Adafruit GFX Library v1.2.2 https://github.com/adafruit/Adafruit-GFX-Library
   * Adafruit NeoPixel v1.1.6 https://github.com/adafruit/Adafruit_NeoPixel
-  * ArduinoJson v5.11.1 https://github.com/bblanchon/ArduinoJson
   * MQTT v2.3.1 https://github.com/256dpi/arduino-mqtt
   * WiFiManager v0.12 https://github.com/tzapu/WiFiManager.git
   * Time 1.5 https://github.com/PaulStoffregen/Time
