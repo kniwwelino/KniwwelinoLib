@@ -89,9 +89,8 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 
 	Serial.begin(115200);
 	DEBUG_PRINTLN("=====================================================");
-	DEBUG_PRINT("\n");DEBUG_PRINT(getName());DEBUG_PRINT(" Reset:\"");DEBUG_PRINTLN(ESP.getResetReason());
-	DEBUG_PRINT(F("\" booting Sketch: "));DEBUG_PRINTLN(nameStr);
-
+	DEBUG_PRINT("\n");DEBUG_PRINT(getName());DEBUG_PRINT(" Reset Cause: ");DEBUG_PRINTLN(ESP.getResetReason());
+	DEBUG_PRINT(F("\" booting Sketch: "));DEBUG_PRINT(nameStr);	DEBUG_PRINT(F(" "));DEBUG_PRINTLN(LIB_VERSION);
 	// init RGB LED
 	RGB.begin();
 	if (silent) {
@@ -1670,6 +1669,7 @@ void KniwwelinoLib::setSilent() {
 	 * Needs to be called directly after Kniwwelino.begin();
 	 */
 	boolean KniwwelinoLib::MQTTUserSetup(const char broker[], int port, const char user[], const char  password[]) {
+		Kniwwelino.mqttGroup.replace(DEF_MQTTBASETOPIC, "");
 		IPAddress brokerIP;
 		WiFi.hostByName(broker, brokerIP);
 		DEBUG_PRINT(F("Setting up User MQTT Broker: "));DEBUG_PRINT(broker);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
@@ -1809,7 +1809,7 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
 	void KniwwelinoLib::MQTTsetGroup(String group) {
-		Kniwwelino.mqttGroup = DEF_MQTTBASETOPIC + group + "/";
+				Kniwwelino.mqttGroup += group + "/";
 	}
 
 	/*
