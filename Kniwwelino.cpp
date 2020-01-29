@@ -2,7 +2,7 @@
 
   KniwwelinoLIB
 
-  Copyright (C) 2017 Luxembourg Institute of Science and Technology.
+  Copyright (C) 2020 Luxembourg Institute of Science and Technology.
   This program is free software: you can redistribute it and/or modify
   it under the terms of the Lesser General Public License as published
   by the Free Software Foundation, either version 3 of the License.
@@ -200,12 +200,7 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 		DEBUG_PRINT(F("Setting up System MQTT Broker: "));DEBUG_PRINT(DEF_MQTTSERVER);DEBUG_PRINT(F(" "));DEBUG_PRINTLN(brokerIP.toString().c_str());
 		mqtt.begin(DEF_MQTTSERVER, DEF_MQTTPORT, wifi);
 		mqtt.onMessage(Kniwwelino._MQTTMessageReceived);
-		//strcpy(Kniwwelino.mqttUser, mqttUser);
-		//strcpy(Kniwwelino.mqttPW, mqttPW);
 		mqttEnabled = MQTTSystemConnect(false);
-
-		mqtt2 = mqtt;
-		mqtt2Enabled = true;
 
 		// BOOT: MQTT Established
 		MATRIXsetStatus(16);
@@ -1695,7 +1690,13 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
 	boolean KniwwelinoLib::MQTTconnect() {
-		return MQTTSystemConnect(true);
+		if (MQTTSystemConnect(true)) {
+			if (mqtt2Enabled) {
+				return MQTTUserConnect(true);
+			} else {
+				return true;
+			}
+		} else return false;
 	}
 
 	boolean KniwwelinoLib::MQTTSystemConnect(boolean silent) {
@@ -1833,10 +1834,15 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTpublish(const char topic[], String message) {
-    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
+			if (!mqttEnabled || ! MQTTconnect()) return false;
+
     	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(mqttGroup + topic);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(message);
-    	boolean retVal =  mqtt2.publish(mqttGroup + topic, message);
-    	return retVal;
+
+			if (mqtt2Enabled) {
+				return mqtt2.publish(mqttGroup + topic, message);
+			} else {
+				return mqtt.publish(mqttGroup + topic, message);
+			}
     }
 
 	/*
@@ -1848,10 +1854,14 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTpublish(String topic, String message) {
-    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
+    	if (!mqttEnabled || ! MQTTconnect()) return false;
     	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(mqttGroup + topic);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(message);
-    	boolean retVal =  mqtt2.publish(mqttGroup + topic, message);
-    	return retVal;
+
+			if (mqtt2Enabled) {
+				return mqtt2.publish(mqttGroup + topic, message);
+			} else {
+				return mqtt.publish(mqttGroup + topic, message);
+			}
     }
 
 	/*
@@ -1866,13 +1876,17 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTsubscribe(const char topic[]) {
-    	if (!mqtt2Enabled || !MQTTUserConnect(true)) return false;
+    	if (!mqttEnabled || ! MQTTconnect()) return false;
 
     	String s_topic = mqttGroup + String(topic);
 
     	DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(s_topic);
-    	boolean ok = mqtt2.subscribe(s_topic);
-
+    	boolean ok = false;
+			if (mqtt2Enabled) {
+				ok = mqtt2.subscribe(s_topic);
+			} else {
+				ok = mqtt.subscribe(s_topic);
+			}
     	// stored new subscription
     	for (int j=9; j>0; j--) {
     		Kniwwelino.mqttSubscriptions[j] = Kniwwelino.mqttSubscriptions[(j-1)];
@@ -1893,10 +1907,15 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTsubscribe( String s_topic) {
-    	if (!mqtt2Enabled || !MQTTUserConnect(true)) return false;
+    	if (!mqttEnabled || ! MQTTconnect()) return false;
 
     	DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(mqttGroup + s_topic);
-    	boolean ok = mqtt2.subscribe(mqttGroup + s_topic);
+    	boolean ok = false;
+			if (mqtt2Enabled) {
+				ok = mqtt2.subscribe(mqttGroup + s_topic);
+			} else {
+				ok = mqtt.subscribe(mqttGroup + s_topic);
+			}
 
     	// stored new subscription
     	for (int j=9; j>0; j--) {
@@ -1915,12 +1934,17 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MQTTunsubscribe(const char topic[]) {
-    	if (!mqtt2Enabled || ! MQTTUserConnect(true)) return false;
+    	if (!mqttEnabled || ! MQTTconnect()) return false;
 
     	String s_topic = mqttGroup + String(topic);
 
     	DEBUG_PRINT(F("MQTTunsubscribe: "));DEBUG_PRINTLN(s_topic);
-    	boolean ok = mqtt2.unsubscribe(s_topic);
+			boolean ok = false;
+			if (mqtt2Enabled) {
+				ok = mqtt2.unsubscribe(s_topic);
+			} else {
+				ok = mqtt.unsubscribe(s_topic);
+			}
 
     	// delete stored subscription
     	for (int j=9; j>-1; j--) {
@@ -2251,7 +2275,7 @@ void KniwwelinoLib::setSilent() {
 		// to distinguish the notes, set a minimum time between them.
 		// the note's duration + 30% seems to work well:
 		int pauseBetweenNotes = duration * 1.30;
-		delay(pauseBetweenNotes);
+		Kniwwelino.sleep(pauseBetweenNotes);
 		yield();
 
 		// stop the tone playing:

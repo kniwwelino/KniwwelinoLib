@@ -45,8 +45,8 @@
 // comment to disable debugging output via serial port.
 #define DEBUG
 
-#define LIB_VERSION "kniwwelinoLIB_1.3.0"
-#define FW_VERSION 	"kniwwelino_130"
+#define LIB_VERSION "kniwwelinoLIB_1.3.2"
+#define FW_VERSION 	"kniwwelino_132"
 
 #define DEF_TYPE    "Kniwwelino"
 #define NAME_PREFIX "Kniwwelino"
