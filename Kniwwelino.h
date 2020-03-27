@@ -45,8 +45,8 @@
 // comment to disable debugging output via serial port.
 #define DEBUG
 
-#define LIB_VERSION "kniwwelinoLIB_1.3.2"
-#define FW_VERSION 	"kniwwelino_132"
+#define LIB_VERSION "kniwwelinoLIB_1.3.3"
+#define FW_VERSION 	"kniwwelino_133"
 
 #define DEF_TYPE    "Kniwwelino"
 #define NAME_PREFIX "Kniwwelino"
@@ -293,6 +293,7 @@ public:
 		static void _MQTTMessageReceived(String &topic, String &payload);
 		void _MQTTupdateStatus(boolean force);
 		boolean PLATFORMcheckFWUpdate();
+		boolean wpsConnect();
 
 		void _initNTP();
 	    time_t _getNtpTime();

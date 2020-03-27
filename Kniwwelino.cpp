@@ -1404,6 +1404,39 @@ void KniwwelinoLib::setSilent() {
 
 	//==== IOT: WIFI functions ==============================================
 
+	boolean KniwwelinoLib::wpsConnect() {
+		WiFi.mode(WIFI_STA);
+		Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
+		Kniwwelino.MATRIXdrawIcon(ICON_WIFI);
+
+		long now = millis();
+		bool wpsSuccess = WiFi.beginWPSConfig();
+	  if(wpsSuccess) {
+	      String wpsSSID = WiFi.SSID();
+	      if(wpsSSID.length() > 0) {
+	        DEBUG_PRINT("WPS done. Connected to SSID "); DEBUG_PRINTLN(wpsSSID.c_str());
+					String inputString = wpsSSID.c_str();
+					inputString += "=";
+					inputString += WiFi.psk().c_str();
+					String wifiConf = FILEread(FILE_WIFI);
+					// add current wifi if not in file.
+					if (wifiConf.indexOf(inputString) == -1 && inputString.indexOf('=') > 0) {
+					  DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(inputString);
+						wifiConf = inputString + wifiConf;
+						//DEBUG_PRINTLN(wifiConf);
+						FILEwrite(FILE_WIFI, wifiConf);
+						DEBUG_PRINTLN(F("Wifi Stored"));
+					}
+	      } else {
+					DEBUG_PRINT("WPS done. Not connected. ");
+	        wpsSuccess = false;
+	      }
+	  }
+
+    DEBUG_PRINT("WPS duration: "); DEBUG_PRINTLN(millis()-now);
+		return wpsSuccess;
+	}
+
 	/*
 	 * internal function to connect the Kniwwelino to the Wifi.
 	 * function is called during setup, or if the connection is lost
@@ -1448,17 +1481,18 @@ void KniwwelinoLib::setSilent() {
 
 	  // if both buttons clicked on startup -> Wifi Manager
 	  if (wifiMgr) {
-		  Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
-		  MATRIXwrite("WIFI AP: "+ Kniwwelino.getID(), MATRIX_FOREVER, false);
-		  char apID[getName().length()+1];
-		  getName().toCharArray(apID, sizeof(apID)+1);
-
-		  DEBUG_PRINT(F("Starting WIFI Manager Access Point with SSID: "));DEBUG_PRINTLN(apID);
-		  WiFiManager wifiManager;
-		  wifiManager.resetSettings();
-		  wifiManager.setTimeout(300);
-		  wifiManager.autoConnect(apID);
-		  DEBUG_PRINT(F("Wifi Manager Ended "));
+			if (!wpsConnect()) {
+				Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
+				MATRIXwrite("WIFI AP: "+ Kniwwelino.getID(), MATRIX_FOREVER, false);
+			  char apID[getName().length()+1];
+			  getName().toCharArray(apID, sizeof(apID)+1);
+				DEBUG_PRINT(F("Starting WIFI Manager Access Point with SSID: "));DEBUG_PRINTLN(apID);
+			  WiFiManager wifiManager;
+			  wifiManager.resetSettings();
+			  wifiManager.setTimeout(300);
+			  wifiManager.autoConnect(apID);
+			  DEBUG_PRINT(F("Wifi Manager Ended "));
+			}
 
 		  // BOOT: wifi manager ended
 		  MATRIXsetStatus(5);
