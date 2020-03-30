@@ -355,6 +355,9 @@ public:
 		Ticker baseTicker;
 
 		// Wifi
+		WiFiManager wifiManager;
+		boolean wifiManagerRunning = false;
+		boolean runWPS = false;
 		boolean wifiEnabled = true;
 		WiFiClient wifi;
 		WiFiClient wifi2;

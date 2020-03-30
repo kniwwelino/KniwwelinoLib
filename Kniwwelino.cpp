@@ -1399,6 +1399,14 @@ void KniwwelinoLib::setSilent() {
 		  if (buttonA) buttonAClicked = true;
 		  if (buttonB) buttonBClicked = true;
 		  if (buttonA && buttonB) buttonABClicked = true;
+
+			if (wifiManagerRunning && buttonAClicked) {
+				wifiManager.setConfigPortalTimeout(1);
+				wifiManager.setConnectTimeout(1);
+				buttonAClicked = false;
+				wifiManagerRunning = false;
+				runWPS = true;
+			}
 	}
 
 
@@ -1407,6 +1415,7 @@ void KniwwelinoLib::setSilent() {
 	boolean KniwwelinoLib::wpsConnect() {
 		WiFi.mode(WIFI_STA);
 		Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
+		MATRIXsetBlinkRate(MATRIX_BLINK_1HZ);
 		Kniwwelino.MATRIXdrawIcon(ICON_WIFI);
 
 		long now = millis();
@@ -1421,7 +1430,7 @@ void KniwwelinoLib::setSilent() {
 					String wifiConf = FILEread(FILE_WIFI);
 					// add current wifi if not in file.
 					if (wifiConf.indexOf(inputString) == -1 && inputString.indexOf('=') > 0) {
-					  DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(inputString);
+					  DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(wpsSSID.c_str());
 						wifiConf = inputString + wifiConf;
 						//DEBUG_PRINTLN(wifiConf);
 						FILEwrite(FILE_WIFI, wifiConf);
@@ -1433,6 +1442,7 @@ void KniwwelinoLib::setSilent() {
 	      }
 	  }
 
+	  MATRIXsetBlinkRate(MATRIX_STATIC);
     DEBUG_PRINT("WPS duration: "); DEBUG_PRINTLN(millis()-now);
 		return wpsSuccess;
 	}
@@ -1481,17 +1491,19 @@ void KniwwelinoLib::setSilent() {
 
 	  // if both buttons clicked on startup -> Wifi Manager
 	  if (wifiMgr) {
-			if (!wpsConnect()) {
 				Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
 				MATRIXwrite("WIFI AP: "+ Kniwwelino.getID(), MATRIX_FOREVER, false);
 			  char apID[getName().length()+1];
 			  getName().toCharArray(apID, sizeof(apID)+1);
 				DEBUG_PRINT(F("Starting WIFI Manager Access Point with SSID: "));DEBUG_PRINTLN(apID);
-			  WiFiManager wifiManager;
+				wifiManagerRunning = true;
 			  wifiManager.resetSettings();
 			  wifiManager.setTimeout(300);
 			  wifiManager.autoConnect(apID);
 			  DEBUG_PRINT(F("Wifi Manager Ended "));
+
+			if (runWPS) {
+				wpsConnect();
 			}
 
 		  // BOOT: wifi manager ended
