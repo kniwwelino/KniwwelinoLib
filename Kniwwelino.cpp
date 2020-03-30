@@ -1415,8 +1415,8 @@ void KniwwelinoLib::setSilent() {
 	boolean KniwwelinoLib::wpsConnect() {
 		WiFi.mode(WIFI_STA);
 		Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
-		MATRIXsetBlinkRate(MATRIX_BLINK_1HZ);
 		Kniwwelino.MATRIXdrawIcon(ICON_WIFI);
+		MATRIXsetBlinkRate(MATRIX_BLINK_1HZ);
 
 		long now = millis();
 		bool wpsSuccess = WiFi.beginWPSConfig();
