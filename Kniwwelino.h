@@ -136,6 +136,7 @@
 #define SERIAL_RESET			"RESET"
 #define SERIAL_WIFI_CLEAR	    "WIFI_CLEAR"
 #define SERIAL_WIFI_ADD	      	"WIFI_ADD"
+#define SERIAL_WIFI_LIST	      "WIFI_LIST"
 #define SERIAL_UPDATING	      	"UPDATING"
 
 #define NTP_SERVER			  	"lu.pool.ntp.org"

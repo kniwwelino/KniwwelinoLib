@@ -2281,6 +2281,16 @@ void KniwwelinoLib::setSilent() {
 	  if (inputString.startsWith(SERIAL_RESET)) {
 		  DEBUG_PRINTLN("rebooting Kniwwelino...byebye");
 		  ESP.restart();
+		} else if (inputString.startsWith(SERIAL_WIFI_LIST)) {
+			DEBUG_PRINTLN(F("SSID list"));
+			int nNetworks = WiFi.scanNetworks();
+			String list = "{";
+ 		  for(int i =0; i<nNetworks; i++){
+		      list += WiFi.SSID(i);
+					if (i<nNetworks-1) list += ",";
+		  }
+			list += "}";
+			Serial.println(list);
 	  } else if (inputString.startsWith(SERIAL_WIFI_CLEAR)) {
 		  FILEwrite(FILE_WIFI, "");
 		  DEBUG_PRINTLN(F("Wifi Conf Resettet"));
