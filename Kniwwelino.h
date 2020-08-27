@@ -27,10 +27,17 @@
 #include <Adafruit_NeoPixel.h>
 #include <Fonts/TomThumb.h>
 
-#include <ESP8266WiFi.h>
 #include <WiFiManager.h>
 #include <DNSServer.h>
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#endif
+#ifdef ESP32
+#include <WiFi.h>
+#include <WebServer.h>
+#endif
+
 
 #include <TimeLib.h>
 #include <Timezone.h>
@@ -39,8 +46,14 @@
 #include <FS.h>
 #include <MQTTClient.h>
 
+#ifdef ESP8266
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
+#endif
+#ifdef ESP32
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#endif
 
 // comment to disable debugging output via serial port.
 #define DEBUG
@@ -53,7 +66,7 @@
 
 #define TICK_FREQ 0.05
 
-// definitions for the HT16K33 LED Matrix Driver
+// definitions for the HT16K33 LED Matrix Driver  //TODO only ESP8266
 #define HT16K33_ADDRESS         0x70
 #define HT16K33_BLINK_CMD       0x80
 #define HT16K33_CMD_BRIGHTNESS  0xE0
@@ -76,7 +89,7 @@
 #define EEPROM_ADR_UPDATE	510
 #define EEPROM_ADR_NUM		511
 
-#define RGB_PIN 			15
+#define RGB_PIN 			15 //TODO ESP32 different pin
 #define RGB_BRIGHTNESS		100
 #define RGB_FOREVER			-1
 
@@ -212,7 +225,7 @@ public:
 
 
 //==== LED MATRIX functions ==================================================
-
+//TODO check what needs to be changed
 		void MATRIXwrite(String text);
 		void MATRIXwriteOnce(String text);
 		void MATRIXwriteAndWait(String text);
@@ -316,7 +329,7 @@ public:
 		// background i2c operations active
 		boolean bgI2C = true;
 
-		// IO
+		// IO //TODO adapt for ESP32
 		byte ioPinNumers[4] = { D0, D5, D6, D7 };
 		int ioPinStatus[4] = { PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED };
 		boolean ioPinclicked[4] = { false, false, false, false };
@@ -329,7 +342,7 @@ public:
 		int matrixPos = 0;
 		int iconcount = 0;
 		int iconnum = 0;
-		uint8_t displaybuffer[8];
+		uint8_t displaybuffer[8]; //TODO
 		uint8_t rotation = 0;
 		boolean idShowing = false;
 		uint8_t matrixScrollDiv = MATRIX_SCROLL_DIV;
