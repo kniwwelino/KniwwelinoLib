@@ -1788,6 +1788,16 @@ void KniwwelinoLib::setSilent() {
 
 			_MQTTupdateStatus(true);
 
+			if (!mqtt2Enabled) {
+				// resubscribe to topics
+				for (int j=9; j>-1; j--) {
+					if(Kniwwelino.mqttSubscriptions[j] != "") {
+						DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(mqttSubscriptions[j]);
+						mqtt.subscribe(mqttSubscriptions[j]);
+					}
+				}
+			}
+
 			if (! silent) Kniwwelino.RGBsetColor(STATE_MQTT);
 			return true;
 		} else {
@@ -1835,7 +1845,8 @@ void KniwwelinoLib::setSilent() {
 			// resubscribe to topics
 			for (int j=9; j>-1; j--) {
 			      if(Kniwwelino.mqttSubscriptions[j] != "") {
-			    	  mqtt.subscribe(mqttSubscriptions[j]);
+					  DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(mqttSubscriptions[j]);
+			    	  mqtt2.subscribe(mqttSubscriptions[j]);
 			      }
 			}
 
