@@ -31,7 +31,7 @@ MQTTClientCallbackSimple mqttCallback = nullptr;
  *
  */
 KniwwelinoLib::KniwwelinoLib() : Adafruit_GFX(5, 5) {
-  RGB = Adafruit_NeoPixel(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
+  	RGB = Adafruit_NeoPixel(RGB_NUM, RGB_PIN, NEO_GRB + NEO_KHZ800);
 }
 
 /*
@@ -89,10 +89,12 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 
 	Serial.begin(115200);
 	DEBUG_PRINTLN("=====================================================");
-	DEBUG_PRINT("\n");DEBUG_PRINT(getName());DEBUG_PRINT(" Reset Cause: ");DEBUG_PRINTLN(ESP.getResetReason());
+	DEBUG_PRINT("\n");DEBUG_PRINT(getName());DEBUG_PRINT(" Reset Cause: ");DEBUG_PRINTLN(getResetReason());
 	DEBUG_PRINT(F("\" booting Sketch: "));DEBUG_PRINT(nameStr);	DEBUG_PRINT(F(" "));DEBUG_PRINTLN(LIB_VERSION);
+
 	// init RGB LED
 	RGB.begin();
+	RGB.clear();
 	if (silent) {
 		RGB.setBrightness(1);
 	} else {
@@ -101,22 +103,38 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 	}
 	DEBUG_PRINT(F(" RGB:On"));
 
+    #ifdef ESP8266
 	// initialize I2C and LED Matrix Driver
 	Wire.begin();
 	Wire.beginTransmission(HT16K33_ADDRESS);
 	Wire.write(0x21);  // turn on oscillator
 	Wire.endTransmission();
+	#endif
+	#ifdef ESP32
+	//define the button pins as inputs
+	pinMode(BUTTON_A, PULLUP);
+	pinMode(BUTTON_B, PULLUP);
+	#endif
 
 	// init LED MATRIX
+	#ifdef ESP8266	
 	setTextWrap(false);
 	setFont(&TomThumb);
-	MATRIXsetBlinkRate(MATRIX_STATIC);
 
 	if (silent) {
 		MATRIXsetBrightness(0);
 	} else {
 		MATRIXsetBrightness(MATRIX_DEFAULT_BRIGHTNESS);
 	}
+	#endif
+	#ifdef ESP32
+	matrix.begin();
+	matrix.setTextWrap(false);
+	matrix.setBrightness(MATRIX_DEFAULT_BRIGHTNESS);
+	matrix.setTextColor(matrixColor);
+	matrix.setFont(&TomThumb);
+	#endif
+	MATRIXsetBlinkRate(MATRIX_STATIC);
 
 	MATRIXclear();
 	// all on to start.
@@ -238,7 +256,7 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 	} else if (!updateMode){
 		// if we were in update Mode before the last Reset, stay in update mode.
 		updateMode = EEPROM.read(EEPROM_ADR_UPDATE);
-		if (ESP.getResetReason() == "Software/System restart" && updateMode) {
+		if ((getResetReason() == "Software/System restart"|| getResetReason() == "SW_CPU_RESET") && updateMode) {
 			updateMode = true;
 		} else if (updateMode) {
 			updateMode = false;
@@ -501,6 +519,7 @@ void KniwwelinoLib::setSilent() {
 	 * effect = RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
 	 */
 	void KniwwelinoLib::PINsetEffect(uint8_t pin, int effect) {
+		#ifdef ESP8266
 		switch (pin) {
 		    case D0:
 		      ioPinStatus[0] = effect;
@@ -515,7 +534,34 @@ void KniwwelinoLib::setSilent() {
 		      ioPinStatus[3] = effect;
 		      break;
 		    break;
-		  }
+		}
+		#endif
+		#ifdef ESP32
+		switch (pin) {
+		case P1:
+			ioPinStatus[0] = effect;
+			break;
+		case P2:
+			ioPinStatus[1] = effect;
+			break;
+		case P3:
+			ioPinStatus[2] = effect;
+			break;
+		case P4:
+			ioPinStatus[3] = effect;
+			break;
+		case P5:
+			ioPinStatus[4] = effect;
+			break;
+		case P6:
+			ioPinStatus[5] = effect;
+			break;
+		case P7:
+			ioPinStatus[6] = effect;
+			break;
+		break;
+		}
+		#endif
 	}
 
 	/*
@@ -525,6 +571,7 @@ void KniwwelinoLib::setSilent() {
 	 */
 	void KniwwelinoLib::PINclear(uint8_t pin) {
 	    digitalWrite(pin, LOW);
+		#ifdef ESP8266
 		switch (pin) {
 		    case D0:
 		      ioPinStatus[0] = PIN_UNUSED;
@@ -540,6 +587,33 @@ void KniwwelinoLib::setSilent() {
 		      break;
 		    break;
 		  }
+		#endif
+		#ifdef ESP32
+		switch (pin) {
+		case P1:
+			ioPinStatus[0] = PIN_UNUSED;
+			break;
+		case P2:
+			ioPinStatus[1] = PIN_UNUSED;
+			break;
+		case P3:
+			ioPinStatus[2] = PIN_UNUSED;
+			break;
+		case P4:
+			ioPinStatus[3] = PIN_UNUSED;
+			break;
+		case P5:
+			ioPinStatus[4] = PIN_UNUSED;
+			break;
+		case P6:
+			ioPinStatus[5] = PIN_UNUSED;
+			break;
+		case P7:
+			ioPinStatus[6] = PIN_UNUSED;
+			break;
+		break;
+		}
+		#endif
 	}
 
 	/*
@@ -548,6 +622,7 @@ void KniwwelinoLib::setSilent() {
 	 */
 	void KniwwelinoLib::PINenableButton(uint8_t pin) {
 		pinMode(pin, INPUT_PULLUP);
+		#ifdef ESP8266
 		switch (pin) {
 		case D0:
 			ioPinStatus[0] = PIN_INPUT;
@@ -562,6 +637,33 @@ void KniwwelinoLib::setSilent() {
 			ioPinStatus[3] = PIN_INPUT;
 			break;
 		}
+		#endif
+		#ifdef ESP32
+		switch (pin) {
+		case P1:
+			ioPinStatus[0] = PIN_INPUT;
+			break;
+		case P2:
+			ioPinStatus[1] = PIN_INPUT;
+			break;
+		case P3:
+			ioPinStatus[2] = PIN_INPUT;
+			break;
+		case P4:
+			ioPinStatus[3] = PIN_INPUT;
+			break;
+		case P5:
+			ioPinStatus[4] = PIN_INPUT;
+			break;
+		case P6:
+			ioPinStatus[5] = PIN_INPUT;
+			break;
+		case P7:
+			ioPinStatus[6] = PIN_INPUT;
+			break;
+		break;
+		}
+		#endif
 	}
 
 	/*
@@ -576,6 +678,7 @@ void KniwwelinoLib::setSilent() {
     	if (!digitalRead(pin)) return false; // still pressed
 
 		boolean clicked = false;
+		#ifdef ESP8266
 		switch (pin) {
 		case D0:
 			clicked = ioPinclicked[0];
@@ -594,6 +697,39 @@ void KniwwelinoLib::setSilent() {
 			ioPinclicked[3] = false;
 			break;
 		}
+		#endif
+		#ifdef ESP32
+		switch (pin) {
+		case P1:
+			clicked = ioPinclicked[0];
+			ioPinclicked[0] = false;
+			break;
+		case P2:
+			clicked = ioPinclicked[1];
+			ioPinclicked[1] = false;
+			break;
+		case P3:
+			clicked = ioPinclicked[2];
+			ioPinclicked[2] = false;
+			break;
+		case P4:
+			clicked = ioPinclicked[3];
+			ioPinclicked[3] = false;
+			break;
+		case P5:
+			clicked = ioPinclicked[3];
+			ioPinclicked[4] = false;
+			break;
+		case P6:
+			clicked = ioPinclicked[3];
+			ioPinclicked[5] = false;
+			break;
+		case P7:
+			clicked = ioPinclicked[3];
+			ioPinclicked[6] = false;
+			break;
+		}
+		#endif
 
     	return (clicked);
 	}
@@ -999,7 +1135,12 @@ void KniwwelinoLib::setSilent() {
     		if (iconString.length() >25) {
 				for(int i=0; i < 25; i++) {
 					if (iconString.charAt(i+1) != '0') {
+						#ifdef ESP8266
 						drawPixel(i%5, i/5, 1);
+						#endif
+						#ifdef ESP32 
+						drawPixel(i%5, i/5, matrixColor);
+						#endif
 					}
 				}
 
@@ -1037,7 +1178,7 @@ void KniwwelinoLib::setSilent() {
     			String sub = iconString.substring((i*2)+2,(i*2)+4);
     			int number = (int) strtol( &sub[0], NULL, 16);
     			for(int j=0; j < 5; j++) {
-    				MATRIXsetPixel(j, i, bitRead(number, 7-j));
+					MATRIXsetPixel(j, i, bitRead(number, 7-j));	
     			}
     		}
     		redrawMatrix = true;
@@ -1058,7 +1199,7 @@ void KniwwelinoLib::setSilent() {
 
         	MATRIXclear();
         	for(int i=0; i < 25; i++) {
-        		MATRIXsetPixel(i%5, i/5, bitRead(iconLong, 24-i));
+				MATRIXsetPixel(i%5, i/5, bitRead(iconLong, 24-i));
         	}
     }
 
@@ -1072,7 +1213,12 @@ void KniwwelinoLib::setSilent() {
     void KniwwelinoLib::MATRIXsetPixel(uint8_t x, uint8_t y, boolean on) {
     	matrixText = "";
     	matrixCount = -1;
+		#ifdef ESP8266
     	drawPixel(x, y, on);
+		#endif
+		#ifdef ESP32
+		drawPixel(x, y, on*matrixColor);
+		#endif
     }
 
 	/*
@@ -1080,24 +1226,37 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
     boolean KniwwelinoLib::MATRIXgetPixel(uint8_t x, uint8_t y) {
+		#ifdef ESP8266
     	// kniwwelino hardware specific: mirror cols
     	int x1 = 4 - x;
+		#endif
+		#ifdef ESP32
+		int x1 = x;
+		#endif
     	int y1 = y;
+		
 
-  	  if (rotation == 0) {
-  		  x = y1;
-  		  y = x1;
-  	  } else if (rotation == 1) {
-  		  x = 4-x1;
-  		  y = y1;
-  	  } else if (rotation == 2) {
-  		  x = 4-y1;
-  		  y = 4-x1;
-  	  } else if (rotation == 3) {
-  		  x = x1;
-  		  y = 4-y1;
-  	  }
+
+		if (rotation == 0) {
+			x = y1;
+			y = x1;
+		} else if (rotation == 1) {
+			x = 4-x1;
+			y = y1;
+		} else if (rotation == 2) {
+			x = 4-y1;
+			y = 4-x1;
+		} else if (rotation == 3) {
+			x = x1;
+			y = 4-y1;
+		}
+		#ifdef ESP8266
     	return bitRead((uint8_t) displaybuffer[y], x);
+		#endif
+		#ifdef ESP32
+		return displaybuffer[x+5*y]>0?true:false;
+		#endif 
+
     }
 
 	/*
@@ -1105,10 +1264,15 @@ void KniwwelinoLib::setSilent() {
 	 * b = Blink Rate (one of: MATRIX_STATIC/MATRIX_BLINK_2HZ/MATRIX_BLINK_1HZ/MATRIX_BLINK_HALFHZ)
 	 */
 	void KniwwelinoLib::MATRIXsetBlinkRate(uint8_t b) {
+	  #ifdef ESP8266
 	  Wire.beginTransmission(HT16K33_ADDRESS);
 	  if (b > 3) b = 0; // turn static on if not sure;
 	  Wire.write(HT16K33_BLINK_CMD | HT16K33_BLINK_DISPLAYON | (b << 1));
 	  Wire.endTransmission();
+	  #endif
+	  #ifdef ESP32
+	  #pragma message "KniwwelinoLib: No blink implemented for ESP32"
+	  #endif
 	}
 
 	/*
@@ -1116,10 +1280,15 @@ void KniwwelinoLib::setSilent() {
 	 * b = Brightness (range 1-15)
 	 */
 	void KniwwelinoLib::MATRIXsetBrightness(uint8_t b) {
-	  b = constrain(b, MATRIX_MIN_BRIGHTNESS, MATRIX_MAX_BRIGHTNESS);
-	  Wire.beginTransmission(HT16K33_ADDRESS);
-	  Wire.write(HT16K33_CMD_BRIGHTNESS | b);
-	  Wire.endTransmission();
+		b = constrain(b, MATRIX_MIN_BRIGHTNESS, MATRIX_MAX_BRIGHTNESS);
+		#ifdef ESP8266
+		Wire.beginTransmission(HT16K33_ADDRESS);
+		Wire.write(HT16K33_CMD_BRIGHTNESS | b);
+		Wire.endTransmission();
+		#endif
+		#ifdef ESP32
+		matrix.setBrightness(b);
+		#endif
 	}
 
 	/*
@@ -1136,9 +1305,16 @@ void KniwwelinoLib::setSilent() {
 	 */
 	void KniwwelinoLib::MATRIXclear() {
 		matrixCount = 0;
+		#ifdef ESP8266
 		for (uint8_t i = 0; i < 8; i++) {
 			displaybuffer[i] = 0;
 		}
+		#endif
+		#ifdef ESP32
+		for (uint8_t i = 0; i < 25; i++) {
+			displaybuffer[i] = 0;
+		}
+		#endif
 		redrawMatrix = true;
 	}
 
@@ -1149,7 +1325,7 @@ void KniwwelinoLib::setSilent() {
     	if (idShowing) return;
 
     	for(int i=0; i < 25; i++) {
-    		MATRIXsetPixel(i%5, i/5, s>=i);
+			MATRIXsetPixel(i%5, i/5, s>=i);
     	}
     }
 
@@ -1161,7 +1337,7 @@ void KniwwelinoLib::setSilent() {
     	if (idShowing) return;
 
     	for(int i=0; i < 25; i++) {
-    		MATRIXsetPixel(i%5, i/5, s<i);
+			MATRIXsetPixel(i%5, i/5, s<i);
     	}
     }
 
@@ -1219,9 +1395,15 @@ void KniwwelinoLib::setSilent() {
     	if ((y < 0) || (y >= 5)) return;
     	  if ((x < 0) || (x >= 5)) return;
     	  // kniwwelino hardware specific: mirror cols
-    	  int x1 = 4 - x;
-    	  int y1 = y;
-
+    	  #ifdef ESP8266
+		  int x1 = 4 - x;
+		  int y1 = y;
+		  #endif
+		  #ifdef ESP32
+		  int x1 = y;
+		  int y1 = x;
+		  #endif
+    	  
     	  if (rotation == 0) {
     		  x = y1;
     		  y = x1;
@@ -1235,12 +1417,16 @@ void KniwwelinoLib::setSilent() {
     		  x = x1;
     		  y = 4-y1;
     	  }
-
+		  #ifdef ESP8266
     	  if (on) {
     	    displaybuffer[y] |= 1 << x;
     	  } else {
     	    displaybuffer[y] &= ~(1 << x);
     	  }
+		  #endif
+		  #ifdef ESP32
+		  displaybuffer[x+5*y] = on;
+		  #endif
     	  redrawMatrix = true;
     }
 
@@ -1253,18 +1439,39 @@ void KniwwelinoLib::setSilent() {
     	// move Matrix Text if active.
     	if (matrixText.length()>0) {
 			if (matrixCount != 0 && (_tick%matrixScrollDiv) == 0) {
+				#ifdef ESP8266
 				for (uint8_t i = 0; i < 8; i++) {
 					displaybuffer[i] = 0;
 				}
+				#endif
+				#ifdef ESP32
+				matrix.fillScreen(0);
+				#endif
 				if (matrixText.length() == 1) {
+					#ifdef ESP8266
 					setCursor(1,5);
 					print(matrixText);
 					redrawMatrix = true;
+					#endif
+					#ifdef ESP32
+					matrix.setCursor(1,5);
+					matrix.print(matrixText);
+					matrix.show();
+					redrawMatrix = false;
+					#endif
 					matrixCount = 0;
 				} else {
+					#ifdef ESP8266
 					setCursor(matrixPos,5);
 					print(matrixText);
 					redrawMatrix = true;
+					#endif
+					#ifdef ESP32
+					matrix.setCursor(matrixPos,5);
+					matrix.print(matrixText);
+					matrix.show();
+					redrawMatrix = false;
+					#endif
 					matrixPos--;
 					if (matrixPos < -(((int)matrixText.length())*4)) {
 						matrixPos = 4;
@@ -1288,6 +1495,7 @@ void KniwwelinoLib::setSilent() {
 
     	if (!redrawMatrix) return;
 
+		#ifdef ESP8266
     	if (!bgI2C) return;
 
     	Wire.beginTransmission(HT16K33_ADDRESS);
@@ -1297,6 +1505,11 @@ void KniwwelinoLib::setSilent() {
     	  Wire.write(displaybuffer[i] >> 8);
     	}
     	Wire.endTransmission();
+		#endif
+		#ifdef ESP32
+		matrix.drawRGBBitmap(0, 0, displaybuffer, MATRIX_WIDTH, MATRIX_HEIGHT);
+		matrix.show();
+		#endif
     	redrawMatrix = false;
     }
 
@@ -1378,35 +1591,41 @@ void KniwwelinoLib::setSilent() {
 	 *
 	 */
 	void KniwwelinoLib::_Buttonsread() {
+		#ifdef ESP8266
+		if (!bgI2C) return;
 
-		  if (!bgI2C) return;
+		// read Buttons
+		Wire.beginTransmission(HT16K33_ADDRESS);
+		Wire.write(HT16K33_KEYINT_REGISTER);
+		Wire.endTransmission();
+		Wire.requestFrom(HT16K33_ADDRESS, 1);
+		buttonsPressed = (Wire.read() != 0);
 
-		  // read Buttons
-		  Wire.beginTransmission(HT16K33_ADDRESS);
-		  Wire.write(HT16K33_KEYINT_REGISTER);
-		  Wire.endTransmission();
-		  Wire.requestFrom(HT16K33_ADDRESS, 1);
-		  buttonsPressed = (Wire.read() != 0);
+		Wire.beginTransmission(HT16K33_ADDRESS);
+		Wire.write(HT16K33_KEYS_REGISTER);
+		Wire.endTransmission();
 
-		  Wire.beginTransmission(HT16K33_ADDRESS);
-		  Wire.write(HT16K33_KEYS_REGISTER);
-		  Wire.endTransmission();
+		Wire.requestFrom(HT16K33_ADDRESS, 2);
+		buttonA = (Wire.read() != 0);
+		buttonB = (Wire.read() != 0);
+		#endif
+		#ifdef ESP32
+		buttonA = !digitalRead(BUTTON_A);
+		buttonB = !digitalRead(BUTTON_B);
+		buttonsPressed = buttonA | buttonB;
+		#endif
 
-		  Wire.requestFrom(HT16K33_ADDRESS, 2);
-		  buttonA = (Wire.read() != 0);
-		  buttonB = (Wire.read() != 0);
+		if (buttonA) buttonAClicked = true;
+		if (buttonB) buttonBClicked = true;
+		if (buttonA && buttonB) buttonABClicked = true;
 
-		  if (buttonA) buttonAClicked = true;
-		  if (buttonB) buttonBClicked = true;
-		  if (buttonA && buttonB) buttonABClicked = true;
-
-			if (wifiManagerRunning && buttonAClicked) {
-				wifiManager.setConfigPortalTimeout(1);
-				wifiManager.setConnectTimeout(1);
-				buttonAClicked = false;
-				wifiManagerRunning = false;
-				runWPS = true;
-			}
+		if (wifiManagerRunning && buttonAClicked) {
+			wifiManager.setConfigPortalTimeout(1);
+			wifiManager.setConnectTimeout(1);
+			buttonAClicked = false;
+			wifiManagerRunning = false;
+			runWPS = true;
+		}
 	}
 
 
@@ -1419,32 +1638,70 @@ void KniwwelinoLib::setSilent() {
 		MATRIXsetBlinkRate(MATRIX_BLINK_1HZ);
 
 		long now = millis();
+		#ifdef ESP8266
 		bool wpsSuccess = WiFi.beginWPSConfig();
-	  if(wpsSuccess) {
-	      String wpsSSID = WiFi.SSID();
-	      if(wpsSSID.length() > 0) {
-	        DEBUG_PRINT("WPS done. Connected to SSID "); DEBUG_PRINTLN(wpsSSID.c_str());
-					String inputString = wpsSSID.c_str();
-					inputString += "=";
-					inputString += WiFi.psk().c_str();
-					String wifiConf = FILEread(FILE_WIFI);
-					// add current wifi if not in file.
-					if (wifiConf.indexOf(inputString) == -1 && inputString.indexOf('=') > 0) {
-					  DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(wpsSSID.c_str());
-						wifiConf = inputString + wifiConf;
-						//DEBUG_PRINTLN(wifiConf);
-						FILEwrite(FILE_WIFI, wifiConf);
-						DEBUG_PRINTLN(F("Wifi Stored"));
-					}
-	      } else {
-					DEBUG_PRINT("WPS done. Not connected. ");
-	        wpsSuccess = false;
-	      }
-	  }
+		#endif
+		#ifdef ESP32
+		bool wpsSuccess = false;
+		esp_wps_config_t wps_config;
+		wps_config.crypto_funcs = &g_wifi_default_wps_crypto_funcs;
+		wps_config.wps_type = ESP_WPS_MODE;
+		esp_wifi_wps_enable(&wps_config);
+  		if (esp_wifi_wps_start(0)==ESP_OK) {
+			  wpsSuccess = true;
+		}
+		#endif
+	 	if(wpsSuccess) {
+			String wpsSSID = WiFi.SSID();
+			if(wpsSSID.length() > 0) {
+	        	DEBUG_PRINT("WPS done. Connected to SSID "); DEBUG_PRINTLN(wpsSSID.c_str());
+				String inputString = wpsSSID.c_str();
+				inputString += "=";
+				inputString += WiFi.psk().c_str();
+				String wifiConf = FILEread(FILE_WIFI);
+				// add current wifi if not in file.
+				if (wifiConf.indexOf(inputString) == -1 && inputString.indexOf('=') > 0) {
+					DEBUG_PRINTLN(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(wpsSSID.c_str());
+					wifiConf = inputString + wifiConf;
+					//DEBUG_PRINTLN(wifiConf);
+					FILEwrite(FILE_WIFI, wifiConf);
+					DEBUG_PRINTLN(F("Wifi Stored"));
+				}
+	     	} else {
+				DEBUG_PRINT("WPS done. Not connected. ");
+	        	wpsSuccess = false;
+	    	}
+	 	}
 
-	  MATRIXsetBlinkRate(MATRIX_STATIC);
-    DEBUG_PRINT("WPS duration: "); DEBUG_PRINTLN(millis()-now);
+	  	MATRIXsetBlinkRate(MATRIX_STATIC);
+    	DEBUG_PRINT("WPS duration: "); DEBUG_PRINTLN(millis()-now);
 		return wpsSuccess;
+	}
+
+	String KniwwelinoLib::getResetReason() {
+		#ifdef ESP8266
+		return ESP.getResetReason();
+		#endif
+		#ifdef ESP32
+		switch (rtc_get_reset_reason(0)) {
+			case 1 : return "POWERON_RESET"; break;          /**<1,  Vbat power on reset*/
+			case 3 : return"SW_RESET"; break;               /**<3,  Software reset digital core*/
+			case 4 : return"OWDT_RESET"; break;             /**<4,  Legacy watch dog reset digital core*/
+			case 5 : return "DEEPSLEEP_RESET"; break;        /**<5,  Deep Sleep reset digital core*/
+			case 6 : return "SDIO_RESET"; break;             /**<6,  Reset by SLC module, reset digital core*/
+			case 7 : return "TG0WDT_SYS_RESET"; break;       /**<7,  Timer Group0 Watch dog reset digital core*/
+			case 8 : return "TG1WDT_SYS_RESET"; break;       /**<8,  Timer Group1 Watch dog reset digital core*/
+			case 9 : return "RTCWDT_SYS_RESET"; break;       /**<9,  RTC Watch dog Reset digital core*/
+			case 10 : return "INTRUSION_RESET"; break;       /**<10, Instrusion tested to reset CPU*/
+			case 11 : return "TGWDT_CPU_RESET"; break;       /**<11, Time Group reset CPU*/
+			case 12 : return "SW_CPU_RESET"; break;          /**<12, Software reset CPU*/
+			case 13 : return "RTCWDT_CPU_RESET"; break;      /**<13, RTC Watch dog Reset CPU*/
+			case 14 : return "EXT_CPU_RESET"; break;         /**<14, for APP CPU, reseted by PRO CPU*/
+			case 15 : return "RTCWDT_BROWN_OUT_RESET"; break;/**<15, Reset when the vdd voltage is not stable*/
+			case 16 : return "RTCWDT_RTC_RESET"; break;      /**<16, RTC Watch dog reset digital core and rtc module*/
+			default : return "NO_MEAN"; break;
+	  	}
+		#endif
 	}
 
 	/*
@@ -1491,16 +1748,16 @@ void KniwwelinoLib::setSilent() {
 
 	  // if both buttons clicked on startup -> Wifi Manager
 	  if (wifiMgr) {
-				Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
-				MATRIXwrite("WIFI AP: "+ Kniwwelino.getID(), MATRIX_FOREVER, false);
-			  char apID[getName().length()+1];
-			  getName().toCharArray(apID, sizeof(apID)+1);
-				DEBUG_PRINT(F("Starting WIFI Manager Access Point with SSID: "));DEBUG_PRINTLN(apID);
-				wifiManagerRunning = true;
-			  wifiManager.resetSettings();
-			  wifiManager.setTimeout(300);
-			  wifiManager.autoConnect(apID);
-			  DEBUG_PRINT(F("Wifi Manager Ended "));
+			Kniwwelino.RGBsetColorEffect(STATE_WIFIMGR, RGB_FLASH, -1);
+			MATRIXwrite("WIFI AP: "+ Kniwwelino.getID(), MATRIX_FOREVER, false);
+			char apID[getName().length()+1];
+			getName().toCharArray(apID, sizeof(apID)+1);
+			DEBUG_PRINT(F("Starting WIFI Manager Access Point with SSID: "));DEBUG_PRINTLN(apID);
+			wifiManagerRunning = true;
+			wifiManager.resetSettings();
+			wifiManager.setTimeout(300);
+			wifiManager.autoConnect(apID);
+			DEBUG_PRINT(F("Wifi Manager Ended "));
 
 			if (runWPS) {
 				wpsConnect();
@@ -1516,7 +1773,14 @@ void KniwwelinoLib::setSilent() {
 
 	  // AP no longer needed, saves Energy
 	  WiFi.mode(WIFI_STA); //  Force the ESP into client-only mode
+		#ifdef ESP8266
 	  WiFi.hostname(getName());
+		#endif
+		#ifdef ESP32
+		char hostname[getName().length()+1];
+		getName().toCharArray(hostname, sizeof(hostname)+1);
+		WiFi.softAPsetHostname(hostname);
+		#endif
 
 	  String wifiSSID = WiFi.SSID();
 	  String wifiPWD 	= WiFi.psk();
@@ -2175,7 +2439,7 @@ void KniwwelinoLib::setSilent() {
     		DEBUG_PRINT(F("MQTTpublish Status to ")); DEBUG_PRINTLN(mqttTopicStatus);
     		mqtt.publish(mqttTopicStatus + "/libversion", LIB_VERSION);
     		mqtt.publish(mqttTopicStatus + "/firmware", fwVersion);
-    		mqtt.publish(mqttTopicStatus + "/resetReason", ESP.getResetReason());
+    		mqtt.publish(mqttTopicStatus + "/resetReason", getResetReason());
     		mqtt.publish(mqttTopicStatus + "/number", String(EEPROM.read(EEPROM_ADR_NUM)));
 			mqttLastPublished = millis();
     	}
@@ -2200,11 +2464,21 @@ void KniwwelinoLib::setSilent() {
 		WiFi.hostByName(DEF_UPDATESERVER, updateIP);
 		DEBUG_PRINT(F(" "));DEBUG_PRINTLN(updateIP.toString().c_str());
 
+		#ifdef ESP32
+		t_httpUpdate_return ret = httpUpdate.update(wifi, DEF_UPDATESERVER, 80, DEF_FWUPDATEURL, String(fwVersion));
+		#endif
+		#ifdef ESP8266
 		t_httpUpdate_return ret = ESPhttpUpdate.update(DEF_UPDATESERVER, 80, DEF_FWUPDATEURL, fwVersion);
+		#endif
 		switch (ret) {
 		case HTTP_UPDATE_FAILED:
 #ifdef DEBUG
+			#ifdef ESP32
+			Serial.printf("\tHTTP_UPDATE_FAILD Error (%d): %s \n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+			#endif
+			#ifdef ESP8266
 			Serial.printf("\tHTTP_UPDATE_FAILD Error (%d): %s \n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+			#endif
 #endif
 			Kniwwelino.RGBsetColorEffect(STATE_ERR, RGB_BLINK, RGB_FOREVER);
 			idShowing = false;
@@ -2223,6 +2497,7 @@ void KniwwelinoLib::setSilent() {
 			idShowing = false;
 			return true;
 		}
+		return false;
     }
 
 	//==== File System functions ==============================================
@@ -2428,4 +2703,4 @@ void KniwwelinoLib::setSilent() {
 	}
 
 // pre-instantiate Objects //////////////////////////////////////////////////////
-KniwwelinoLib Kniwwelino = KniwwelinoLib();
+KniwwelinoLib Kniwwelino;

@@ -22,10 +22,13 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
+#include <Adafruit_NeoPixel.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_NeoPixel.h>
 #include <Fonts/TomThumb.h>
+#ifdef ESP32
+#include <Adafruit_NeoMatrix.h>
+#endif
 
 #include <WiFiManager.h>
 #include <DNSServer.h>
@@ -36,6 +39,7 @@
 #ifdef ESP32
 #include <WiFi.h>
 #include <WebServer.h>
+#include "esp_wps.h"
 #endif
 
 
@@ -44,6 +48,9 @@
 #include <WiFiUdp.h>
 
 #include <FS.h>
+#ifdef ESP32
+#include <SPIFFS.h>
+#endif
 #include <MQTTClient.h>
 
 #ifdef ESP8266
@@ -53,6 +60,8 @@
 #ifdef ESP32
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <rom/rtc.h>
+#include <Tone32.h>
 #endif
 
 // comment to disable debugging output via serial port.
@@ -66,7 +75,24 @@
 
 #define TICK_FREQ 0.05
 
-// definitions for the HT16K33 LED Matrix Driver  //TODO only ESP8266
+//Pin definition for KniwwelinoX
+#ifdef ESP32
+#define LED_BUILTIN 2
+#define MATRIX_PIN	25
+#define RGB_PIN 	26
+#define BUTTON_A	34
+#define BUTTON_B	35
+#define P1 			4
+#define P2 			33
+#define P3 			27
+#define P4			15
+#define P5 			14
+#define P6			13
+#define P7			32
+#endif
+
+// definitions for the HT16K33 LED Matrix Driver
+#ifdef ESP8266
 #define HT16K33_ADDRESS         0x70
 #define HT16K33_BLINK_CMD       0x80
 #define HT16K33_CMD_BRIGHTNESS  0xE0
@@ -74,6 +100,12 @@
 #define HT16K33_KEYS_REGISTER   0x40
 #define HT16K33_KEYINT_REGISTER 0x60
 #define HT16K33_BLINK_DISPLAYON 0x01
+#endif
+
+#ifdef ESP32
+#define MATRIX_WIDTH 5
+#define MATRIX_HEIGHT 5
+#endif
 
 #define MATRIX_STATIC 			0
 #define MATRIX_BLINK_2HZ  		1
@@ -89,7 +121,13 @@
 #define EEPROM_ADR_UPDATE	510
 #define EEPROM_ADR_NUM		511
 
-#define RGB_PIN 			15 //TODO ESP32 different pin
+#ifdef ESP32
+#define RGB_NUM 	6
+#endif
+#ifdef ESP8266
+#define RGB_PIN 			15
+#define RGB_NUM 	1
+#endif
 #define RGB_BRIGHTNESS		100
 #define RGB_FOREVER			-1
 
@@ -156,6 +194,11 @@
 #define NTP_PORT			  	8888
 #define NTP_TIMEZONE			1
 #define NTP_PACKET_SIZE			48 // NTP time is in the first 48 bytes of message
+
+// some definitions needed for WPS
+#ifdef ESP32
+#define ESP_WPS_MODE      WPS_TYPE_PBC
+#endif
 
 static uint32_t _tick = 0;
 static boolean mqttLogEnabled = false;
@@ -308,6 +351,7 @@ public:
 		void _MQTTupdateStatus(boolean force);
 		boolean PLATFORMcheckFWUpdate();
 		boolean wpsConnect();
+		String getResetReason();
 
 		void _initNTP();
 	    time_t _getNtpTime();
@@ -330,19 +374,36 @@ public:
 		boolean bgI2C = true;
 
 		// IO //TODO adapt for ESP32
+		#ifdef ESP8266
 		byte ioPinNumers[4] = { D0, D5, D6, D7 };
 		int ioPinStatus[4] = { PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED };
 		boolean ioPinclicked[4] = { false, false, false, false };
+		#endif
+		#ifdef ESP32
+		byte ioPinNumers[7] = { P1, P2, P3, P4, P5, P6, P7 };
+		int ioPinStatus[7] = { PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED };
+		boolean ioPinclicked[7] = { false, false, false, false, false, false, false };
+		#endif
 		int pinBlinkCount = 1;
 
 		// MATRIX
+		#ifdef ESP32
+		Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT, MATRIX_PIN,
+			NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +
+			NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG,
+			NEO_GRB            + NEO_KHZ800);
+		uint16_t displaybuffer[25];
+		uint16_t matrixColor = matrix.Color(255,0,0);
+		#endif
+		#ifdef ESP8266
+		uint8_t displaybuffer[8];
+		#endif
 		boolean redrawMatrix = true;
 		String matrixText;
 		int matrixCount = -1;
 		int matrixPos = 0;
 		int iconcount = 0;
 		int iconnum = 0;
-		uint8_t displaybuffer[8]; //TODO
 		uint8_t rotation = 0;
 		boolean idShowing = false;
 		uint8_t matrixScrollDiv = MATRIX_SCROLL_DIV;
