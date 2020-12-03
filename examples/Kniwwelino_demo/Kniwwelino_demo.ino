@@ -21,8 +21,8 @@
 #define MINBRIGHTNESS  5
 #define STEPBRIGHTNESS  5
 
-#define TEXTCOUNT  6
-String texts[TEXTCOUNT] = {"", "Kniwwelino", "Willkommen!", "Welcome!", "Moien!", "Bienvenue!"};
+#define TEXTCOUNT  5
+const char* texts[TEXTCOUNT] = {"Kniwwelino", "Willkommen!", "Welcome!", "Moien!", "Bienvenue!"};
 long last = 0, wait = 0;
 
 int brightness = MAXBRIGHTNESS, step = -STEPBRIGHTNESS;
@@ -81,9 +81,10 @@ void loop() {
   }
 
   if (last + wait < millis()) {
-    int choose = random(1,TEXTCOUNT);
-    Kniwwelino.MATRIXwrite(texts[choose]);
-    Serial.println("\nText: " + texts[choose] + " " + choose);
+    int choose = random(0,TEXTCOUNT);
+    String t = (String)texts[choose];
+    Kniwwelino.MATRIXwrite(t);
+    Serial.println("\nText: " + t + " " + choose);
     last = millis();
     wait = random(30000, 50000);
   }
