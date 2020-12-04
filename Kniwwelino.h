@@ -286,6 +286,10 @@ public:
 		void MATRIXsetPixels(uint8_t p);
 		void MATRIXsetStatus(uint8_t p);
 		void MATRIXsetRotation(uint8_t rotation);
+		#ifdef ESP32
+		void MATRIXsetTextColor(uint16_t color);
+		void MATRIXsetColor(uint16_t color);
+		#endif
 
 //==== Onboard Button functions ==============================================
 
