@@ -1044,6 +1044,23 @@ void KniwwelinoLib::setSilent() {
 
 //==== LED MATRIX functions ==================================================
 
+	#ifdef ESP32
+	/*
+	 * set the color of the scrolling text
+	 */
+	void KniwwelinoLib::MATRIXsetTextColor(uint16_t color) {
+		matrix.setTextColor(color);
+	}
+
+	/*
+	 * set the color of the matrix including the scrolling text color
+	 */
+	void KniwwelinoLib::MATRIXsetColor(uint16_t color) {
+		matrixColor = color;
+		matrix.setTextColor(matrixColor);
+	}
+	#endif
+
 	/*
 	 * Write the given text to the matrix and scroll it for a number of times.
 	 *
