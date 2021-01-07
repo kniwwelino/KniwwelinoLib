@@ -1821,8 +1821,9 @@ void KniwwelinoLib::setSilent() {
 
 		if (! silent) Kniwwelino.RGBsetColorEffect(STATE_MQTT, RGB_BLINK, RGB_FOREVER);
 
-		char c_clientID[(getName()).length()+1];
-		getName().toCharArray(c_clientID, sizeof(c_clientID)+1);
+		String userClientID = getName()+"_u";
+		char c_clientID[userClientID.length()+1];
+		userClientID.toCharArray(c_clientID, sizeof(c_clientID)+1);
 
 		uint8_t retries = 0;
 		DEBUG_PRINT(F(" Connecting to User MQTT "));DEBUG_PRINT(Kniwwelino.mqtt2User); DEBUG_PRINT(" ");DEBUG_PRINT(Kniwwelino.mqtt2PW);
