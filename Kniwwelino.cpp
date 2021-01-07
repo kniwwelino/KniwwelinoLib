@@ -1365,6 +1365,10 @@ void KniwwelinoLib::setSilent() {
 	 */
 	void KniwwelinoLib::MATRIXshowID() {
 		String id = Kniwwelino.getID();
+		#ifdef ESP32 
+		uint16_t backupMatrixColor = matrixColor;
+		MATRIXsetColor(matrix.Color(0x00, 0xff, 0x00));
+		#endif
 		DEBUG_PRINT("ID:");DEBUG_PRINT(id);DEBUG_PRINT(" MAC:");DEBUG_PRINTLN(getMAC());
 		// write the first 5 digits of the ID to the 5 lines (first 4 cols)
 		for(int i=0; i < 5; i++) {
@@ -1382,6 +1386,9 @@ void KniwwelinoLib::setSilent() {
 		}
 		Kniwwelino.MATRIXsetPixel(4, 4, 0);
 		redrawMatrix = true;
+		#ifdef ESP32 
+		MATRIXsetColor(backupMatrixColor);
+		#endif
 	}
 
 	/*
